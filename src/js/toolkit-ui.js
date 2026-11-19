@@ -1,0 +1,144 @@
+/**
+ * Interactive toolkit panels: Pair Extraordinaire Co-author Generator,
+ * Galaxy Brain Q&A Finder, and Profile README / JSON Exporter.
+ */
+
+import { resolveCollaborator, buildCoAuthoredCommit } from './coauthor.js';
+import { buildMarkdownReport, buildJsonReport } from './exporter.js';
+import { t } from './i18n.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function copyText(text, button, defaultLabel, copiedLabel) {
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = copiedLabel;
+    setTimeout(() => {
+      button.textContent = defaultLabel;
+    }, 1800);
+  } catch {
+    window.prompt('Copy:', text);
+  }
+}
+
+/**
+ * Renders the three interactive toolkit panels into the target container.
+ * @param {HTMLElement} container
+ * @param {object} analysis
+ * @param {{ lang: 'pt'|'en', getToken: () => string }} options
+ */
+export function renderToolkit(container, analysis, { lang, getToken }) {
+  if (!container || !analysis) return;
+
+  const markdownSnippet = buildMarkdownReport(analysis, lang);
+  const galaxyChips = analysis.galaxyBrainLinks
+    .map(
+      (link) => `
+      <a class="chip" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
+        🧠 ${escapeHtml(link.language)} ↗
+      </a>
+    `
+    )
+    .join('');
+
+  container.innerHTML = `
+    <article class="panel">
+      <h3>🤝 ${escapeHtml(t(lang, 'coauthorTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'coauthorDesc'))}</p>
+      <form id="coauthor-form" class="token-drawer-body" style="margin-top:12px">
+        <input
+          id="coauthor-username"
+          class="input"
+          type="text"
+          required
+          placeholder="${escapeHtml(t(lang, 'coauthorUserPlaceholder'))}"
+        />
+        <input
+          id="coauthor-message"
+          class="input"
+          type="text"
+          value="feat: pair programming contribution"
+          placeholder="${escapeHtml(t(lang, 'coauthorMsgPlaceholder'))}"
+        />
+        <div class="btn-row">
+          <button class="btn btn-primary" type="submit">${escapeHtml(t(lang, 'coauthorGenerate'))}</button>
+          <button id="coauthor-copy-btn" class="btn hidden" type="button">${escapeHtml(t(lang, 'coauthorCopy'))}</button>
+        </div>
+      </form>
+      <pre id="coauthor-output" class="code-block hidden" style="margin-top:12px"></pre>
+    </article>
+
+    <article class="panel">
+      <h3>🧠 ${escapeHtml(t(lang, 'galaxyTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'galaxyDesc'))}</p>
+      <div class="chip-list">${galaxyChips}</div>
+    </article>
+
+    <article class="panel">
+      <h3>📋 ${escapeHtml(t(lang, 'exportTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'exportDesc'))}</p>
+      <pre id="markdown-preview" class="code-block" style="margin-top:12px;max-height:200px">${escapeHtml(markdownSnippet)}</pre>
+      <div class="btn-row">
+        <button id="copy-md-btn" class="btn btn-primary" type="button">${escapeHtml(t(lang, 'copyMarkdown'))}</button>
+        <button id="download-json-btn" class="btn" type="button">${escapeHtml(t(lang, 'downloadJson'))}</button>
+      </div>
+    </article>
+  `;
+
+  const coauthorForm = container.querySelector('#coauthor-form');
+  const coauthorOutput = container.querySelector('#coauthor-output');
+  const coauthorCopyBtn = container.querySelector('#coauthor-copy-btn');
+  let latestGitCommand = '';
+
+  coauthorForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const collaboratorUsername = container.querySelector('#coauthor-username').value.trim();
+    const commitMsg = container.querySelector('#coauthor-message').value.trim();
+    if (!collaboratorUsername) return;
+
+    coauthorOutput.classList.remove('hidden');
+    coauthorOutput.textContent = t(lang, 'loading');
+    coauthorCopyBtn.classList.add('hidden');
+
+    try {
+      const collaborator = await resolveCollaborator(collaboratorUsername, { token: getToken() });
+      const result = buildCoAuthoredCommit(commitMsg, [collaborator]);
+      latestGitCommand = result.gitCommand;
+      coauthorOutput.textContent = `${result.fullMessage}\n\n# CLI:\n${result.gitCommand}`;
+      coauthorCopyBtn.classList.remove('hidden');
+    } catch {
+      coauthorOutput.textContent = t(lang, 'errorNotFound');
+    }
+  });
+
+  coauthorCopyBtn?.addEventListener('click', () => {
+    if (!latestGitCommand) return;
+    copyText(latestGitCommand, coauthorCopyBtn, t(lang, 'coauthorCopy'), t(lang, 'copied'));
+  });
+
+  const copyMdBtn = container.querySelector('#copy-md-btn');
+  copyMdBtn?.addEventListener('click', () => {
+    copyText(markdownSnippet, copyMdBtn, t(lang, 'copyMarkdown'), t(lang, 'copied'));
+  });
+
+  const downloadJsonBtn = container.querySelector('#download-json-btn');
+  downloadJsonBtn?.addEventListener('click', () => {
+    const jsonString = buildJsonReport(analysis);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `github-achievements-${analysis.profile.login || 'report'}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  });
+}
