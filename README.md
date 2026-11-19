@@ -20,6 +20,8 @@ Interactive dashboard and developer toolkit powered by the **GitHub REST API v3*
 - **Pair Extraordinaire Generator:** Resolves any real GitHub collaborator username via API into a verified `id+username@users.noreply.github.com` `Co-authored-by:` trailer and copy-ready `git commit` command.
 - **Galaxy Brain Q&A Finder:** Detects primary languages from owned repositories and generates filtered GitHub Discussions search links for open, unanswered Q&A threads.
 - **Profile README & JSON Exporter:** Builds ready-to-paste Markdown tables with Shields.io badges and downloadable JSON reports.
+- **Shareable Profile Card Generator:** Exports dark/light 1200×630 PNG & SVG profile cards ready for LinkedIn, portfolios, and social sharing.
+- **GitHub Flow CLI (`Ship-PR`):** Zero-dependency Node.js CLI (`scripts/ship-pr.mjs`) to turn everyday real edits into short-lived branches + merged PRs in one command, with secret-file guardrails and verified `-CoAuthor` trailer resolution.
 - **Bilingual & Accessible UI:** Instant **PT-BR / EN** language toggle, **Dark / Light** theme switcher, live API rate-limit indicator, and optional client-side Personal Access Token support (for 5,000 req/hr).
 
 ---
@@ -52,6 +54,10 @@ node --test tests/*.test.mjs
 
 # Preview locally with any static server
 python -m http.server 8080
+
+# Use the GitHub Flow CLI (requires git + authenticated GitHub CLI `gh`)
+node scripts/ship-pr.mjs "feat: your real change"
+node scripts/ship-pr.mjs "fix: pair fix" -CoAuthor collaborator-username -DryRun
 ```
 
 ---
@@ -62,12 +68,15 @@ python -m http.server 8080
 .
 ├── index.html                   # Interactive dashboard UI
 ├── docs.html                    # GitHub REST API & architecture documentation
+├── scripts/
+│   └── ship-pr.mjs              # One-command GitHub Flow & Co-authored-by CLI
 ├── src/
 │   ├── css/styles.css           # Responsive Dark/Light theme styles
 │   └── js/
 │       ├── achievements.js      # Achievements catalog & tier math
 │       ├── github-api.js        # GitHub REST API v3 client
 │       ├── analyzer.js          # Quickdraw detector, repo ranker & insights
+│       ├── card-generator.js    # Shareable 1200x630 PNG/SVG card renderer
 │       ├── coauthor.js          # Co-authored-by trailer generator
 │       ├── exporter.js          # Markdown badge & JSON report exporter
 │       ├── i18n.js              # PT-BR & EN translations
@@ -76,7 +85,10 @@ python -m http.server 8080
 └── tests/
     ├── achievements.test.mjs
     ├── analyzer.test.mjs
-    └── exporter.test.mjs
+    ├── card-generator.test.mjs
+    ├── exporter.test.mjs
+    ├── metadata.test.mjs
+    └── ship-pr.test.mjs
 ```
 
 ---
