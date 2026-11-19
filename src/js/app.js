@@ -5,6 +5,7 @@
 import { PROFILE_HIGHLIGHTS, RETIRED_ACHIEVEMENTS } from './achievements.js';
 import { fetchUserDashboardData, GitHubApiError } from './github-api.js';
 import { analyzeDashboardData } from './analyzer.js';
+import { renderToolkit } from './toolkit-ui.js';
 import { t } from './i18n.js';
 
 const state = {
@@ -297,6 +298,10 @@ function recomputeAndRender() {
   renderAchievements(state.analysis);
   renderRecommendations(state.analysis);
   renderTopRepos(state.analysis);
+  renderToolkit(els.toolkitMount, state.analysis, {
+    lang: state.lang,
+    getToken: () => els.tokenInput.value.trim()
+  });
   renderHighlightsAndRetired();
   els.dashboard.classList.remove('hidden');
 }
