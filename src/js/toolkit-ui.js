@@ -5,6 +5,7 @@
 
 import { resolveCollaborator, buildCoAuthoredCommit } from './coauthor.js';
 import { buildMarkdownReport, buildJsonReport } from './exporter.js';
+import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
 import { t } from './i18n.js';
 
 function escapeHtml(value) {
@@ -34,7 +35,7 @@ async function copyText(text, button, defaultLabel, copiedLabel) {
  * @param {object} analysis
  * @param {{ lang: 'pt'|'en', getToken: () => string }} options
  */
-export function renderToolkit(container, analysis, { lang, getToken }) {
+export function renderToolkit(container, analysis, { lang, theme = 'dark', getToken }) {
   if (!container || !analysis) return;
 
   const markdownSnippet = buildMarkdownReport(analysis, lang);
@@ -87,6 +88,8 @@ export function renderToolkit(container, analysis, { lang, getToken }) {
       <pre id="markdown-preview" class="code-block" style="margin-top:12px;max-height:200px">${escapeHtml(markdownSnippet)}</pre>
       <div class="btn-row">
         <button id="copy-md-btn" class="btn btn-primary" type="button">${escapeHtml(t(lang, 'copyMarkdown'))}</button>
+        <button id="download-card-png-btn" class="btn" type="button">🖼️ ${escapeHtml(t(lang, 'downloadCardPng'))}</button>
+        <button id="download-card-svg-btn" class="btn" type="button">🎨 ${escapeHtml(t(lang, 'downloadCardSvg'))}</button>
         <button id="download-json-btn" class="btn" type="button">${escapeHtml(t(lang, 'downloadJson'))}</button>
       </div>
     </article>
@@ -136,6 +139,43 @@ export function renderToolkit(container, analysis, { lang, getToken }) {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `github-achievements-${analysis.profile.login || 'report'}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  const downloadCardPngBtn = container.querySelector('#download-card-png-btn');
+  downloadCardPngBtn?.addEventListener('click', async () => {
+    const prevHtml = downloadCardPngBtn.innerHTML;
+    downloadCardPngBtn.disabled = true;
+    downloadCardPngBtn.textContent = t(lang, 'generatingCard');
+    try {
+      const avatarDataUrl = await fetchAvatarAsDataUrl(analysis.profile.avatarUrl);
+      const svg = buildProfileCardSvg(analysis, { theme, lang, avatarDataUrl });
+      const blob = await renderSvgToPngBlob(svg, 1200, 630);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `github-achievements-${analysis.profile.login || 'card'}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      downloadCardPngBtn.disabled = false;
+      downloadCardPngBtn.innerHTML = prevHtml;
+    }
+  });
+
+  const downloadCardSvgBtn = container.querySelector('#download-card-svg-btn');
+  downloadCardSvgBtn?.addEventListener('click', () => {
+    const svg = buildProfileCardSvg(analysis, { theme, lang });
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `github-achievements-${analysis.profile.login || 'card'}.svg`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
