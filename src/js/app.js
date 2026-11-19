@@ -6,6 +6,7 @@ import { PROFILE_HIGHLIGHTS, RETIRED_ACHIEVEMENTS } from './achievements.js';
 import { fetchUserDashboardData, GitHubApiError } from './github-api.js';
 import { analyzeDashboardData } from './analyzer.js';
 import { renderToolkit } from './toolkit-ui.js';
+import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
 import { t } from './i18n.js';
 
 const state = {
@@ -95,8 +96,38 @@ function renderProfile(analysis) {
         </div>
       </div>
     </div>
-    <button id="share-profile-btn" class="btn" type="button">${escapeHtml(t(state.lang, 'shareUrl'))}</button>
+    <div class="btn-row" style="margin-top:0">
+      <button id="download-profile-png-btn" class="btn btn-primary" type="button">🖼️ ${escapeHtml(t(state.lang, 'downloadCardPng'))}</button>
+      <button id="share-profile-btn" class="btn" type="button">${escapeHtml(t(state.lang, 'shareUrl'))}</button>
+    </div>
   `;
+
+  const downloadPngBtn = document.getElementById('download-profile-png-btn');
+  downloadPngBtn?.addEventListener('click', async () => {
+    const defaultHtml = downloadPngBtn.innerHTML;
+    downloadPngBtn.disabled = true;
+    downloadPngBtn.textContent = t(state.lang, 'generatingCard');
+    try {
+      const avatarDataUrl = await fetchAvatarAsDataUrl(profile.avatarUrl);
+      const svg = buildProfileCardSvg(analysis, {
+        theme: state.theme,
+        lang: state.lang,
+        avatarDataUrl
+      });
+      const pngBlob = await renderSvgToPngBlob(svg, 1200, 630);
+      const url = URL.createObjectURL(pngBlob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `github-achievements-${profile.login || 'card'}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      downloadPngBtn.disabled = false;
+      downloadPngBtn.innerHTML = defaultHtml;
+    }
+  });
 
   const shareBtn = document.getElementById('share-profile-btn');
   shareBtn?.addEventListener('click', async () => {
@@ -300,6 +331,7 @@ function recomputeAndRender() {
   renderTopRepos(state.analysis);
   renderToolkit(els.toolkitMount, state.analysis, {
     lang: state.lang,
+    theme: state.theme,
     getToken: () => els.tokenInput.value.trim()
   });
   renderHighlightsAndRetired();
