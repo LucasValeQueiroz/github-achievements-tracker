@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Interactive GitHub Profile Achievements tracker & toolkit powered by the GitHub REST API",
   "type": "module",
+  "bin": {
+    "ship-pr": "./scripts/ship-pr.mjs"
+  },
   "scripts": {
     "test": "node --test tests/*.test.mjs"
   },
