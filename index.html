@@ -31,7 +31,10 @@
       </a>
       <nav class="topbar-actions" aria-label="Primary">
         <a class="nav-link" href="docs.html" data-i18n="docsLink">Documentação da API</a>
-        <a class="nav-link" href="https://github.com/LucasValeQueiroz/github-achievements-tracker" target="_blank" rel="noopener noreferrer" data-i18n="repoLink">Repositório</a>
+        <a class="star-cta" href="https://github.com/LucasValeQueiroz/github-achievements-tracker" target="_blank" rel="noopener noreferrer">
+          <span aria-hidden="true">⭐</span>
+          <span data-i18n="starCta">Star no GitHub</span>
+        </a>
         <button id="lang-toggle" class="icon-btn" type="button" aria-label="Switch language">PT / EN</button>
         <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme">☀️</button>
       </nav>
@@ -59,6 +62,14 @@
           <button id="search-submit" class="btn btn-primary" type="submit" data-i18n="searchButton">
             Analisar perfil
           </button>
+        </div>
+
+        <div class="quick-examples" aria-label="Example GitHub profiles">
+          <span class="small muted" data-i18n="tryExamples">Testar rápido:</span>
+          <button type="button" class="example-chip" data-example-user="torvalds">@torvalds</button>
+          <button type="button" class="example-chip" data-example-user="gaearon">@gaearon</button>
+          <button type="button" class="example-chip" data-example-user="sindresorhus">@sindresorhus</button>
+          <button type="button" class="example-chip" data-example-user="LucasValeQueiroz">@LucasValeQueiroz</button>
         </div>
 
         <details class="token-drawer">

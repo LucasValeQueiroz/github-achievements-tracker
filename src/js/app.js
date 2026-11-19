@@ -346,6 +346,14 @@ function init() {
     loadUser(els.usernameInput.value);
   });
 
+  document.querySelectorAll('[data-example-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetUser = btn.dataset.exampleUser;
+      els.usernameInput.value = targetUser;
+      loadUser(targetUser);
+    });
+  });
+
   els.langToggle.addEventListener('click', () => {
     state.lang = state.lang === 'pt' ? 'en' : 'pt';
     localStorage.setItem('gat_lang', state.lang);
