@@ -1,0 +1,24 @@
+{
+  "name": "github-achievements-tracker",
+  "version": "1.0.0",
+  "description": "Interactive GitHub Profile Achievements tracker & toolkit powered by the GitHub REST API",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LucasValeQueiroz/github-achievements-tracker.git"
+  },
+  "homepage": "https://lucasvalequeiroz.github.io/github-achievements-tracker/",
+  "keywords": [
+    "github",
+    "achievements",
+    "github-api",
+    "github-pages",
+    "developer-tools",
+    "badges"
+  ],
+  "author": "Lucas Vale Queiroz",
+  "license": "MIT"
+}
