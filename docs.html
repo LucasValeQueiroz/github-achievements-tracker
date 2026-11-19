@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API &amp; Architecture Documentation — GitHub Achievements Tracker</title>
+  <meta name="description" content="Technical documentation for the GitHub REST API integration powering GitHub Achievements Tracker." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>" />
+  <link rel="stylesheet" href="src/css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="./">
+        <span class="brand-icon" aria-hidden="true">🏆</span>
+        <span>GitHub Achievements Tracker</span>
+      </a>
+      <nav class="topbar-actions" aria-label="Documentation navigation">
+        <a class="nav-link" href="./">← Back to Dashboard</a>
+        <a class="nav-link" href="https://github.com/LucasValeQueiroz/github-achievements-tracker" target="_blank" rel="noopener noreferrer">Repository</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content" style="max-width: 860px">
+    <section class="hero" style="text-align:left; margin-bottom:24px">
+      <h1>GitHub REST API Integration &amp; Docs</h1>
+      <p class="hero-subtitle">
+        Technical overview of how <strong>GitHub Achievements Tracker</strong> integrates with the official GitHub REST API v3, handles rate limits, and protects user privacy.
+      </p>
+    </section>
+
+    <div class="dashboard">
+      <article class="panel">
+        <h2>1. GitHub API Endpoints Used</h2>
+        <p class="muted small">All requests send <code>Accept: application/vnd.github+json</code> and <code>X-GitHub-Api-Version: 2022-11-28</code> directly from the user's browser.</p>
+        <div class="repos-list" style="margin-top:12px">
+          <div class="repo-row">
+            <div>
+              <strong><code>GET /users/{username}</code></strong>
+              <p class="small muted">Loads public profile identity, avatar, bio, followers, and user ID for verified noreply co-author email generation.</p>
+            </div>
+            <span class="pill">Profile &amp; Pair</span>
+          </div>
+          <div class="repo-row">
+            <div>
+              <strong><code>GET /users/{username}/repos?type=owner&amp;per_page=100</code></strong>
+              <p class="small muted">Analyzes owned public repositories, top star counts (Starstruck), and primary programming languages (Galaxy Brain Q&amp;A links).</p>
+            </div>
+            <span class="pill">Starstruck</span>
+          </div>
+          <div class="repo-row">
+            <div>
+              <strong><code>GET /search/issues?q=author:{username}+type:pr+is:merged</code></strong>
+              <p class="small muted">Reads the total count of merged public pull requests authored by the user to compute Pull Shark tiers.</p>
+            </div>
+            <span class="pill">Pull Shark</span>
+          </div>
+          <div class="repo-row">
+            <div>
+              <strong><code>GET /search/issues?q=author:{username}+is:closed</code></strong>
+              <p class="small muted">Inspects recent closed issues and pull requests to detect items closed within 5 minutes of creation (Quickdraw).</p>
+            </div>
+            <span class="pill">Quickdraw</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>2. Privacy &amp; Rate-Limit Model</h2>
+        <ul class="recommendations-list">
+          <li><strong>100% Client-Side:</strong> No backend server, no telemetry, and no third-party proxy. Every API call goes directly from your browser to <code>https://api.github.com</code>.</li>
+          <li><strong>Optional Personal Access Token:</strong> Public unauthenticated calls allow up to 60 requests/hour per IP (and 10 search requests/minute). Entering a Personal Access Token raises the rate limit to 5,000 requests/hour and stays solely in browser memory for the current tab.</li>
+          <li><strong>Live Rate-Limit Visibility:</strong> Remaining quota from <code>x-ratelimit-remaining</code> and <code>x-ratelimit-limit</code> headers is surfaced directly in the dashboard header.</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>3. Modular Architecture</h2>
+        <pre class="code-block">src/
+├── css/styles.css          # Responsive GitHub-inspired design system (Dark/Light)
+└── js/
+    ├── achievements.js     # Catalog of active, highlight, and retired badges + tier math
+    ├── github-api.js       # Zero-dependency GitHub REST API v3 client
+    ├── analyzer.js         # Quickdraw 5-min detector, repo ranker, Q&amp;A finder
+    ├── coauthor.js         # Verified GitHub noreply Co-authored-by generator
+    ├── exporter.js         # Shields.io Profile README Markdown &amp; JSON exporter
+    ├── i18n.js             # PT-BR and EN localization layer
+    ├── toolkit-ui.js       # Interactive Co-author, Galaxy Brain, and Export widgets
+    └── app.js              # Main dashboard state &amp; DOM renderer</pre>
+      </article>
+
+      <article class="panel">
+        <h2>4. Support &amp; Open-Source Maintenance</h2>
+        <p class="muted">
+          Maintained by <a href="https://github.com/LucasValeQueiroz" target="_blank" rel="noopener noreferrer">Lucas Vale Queiroz</a> under the MIT License.
+          To report bugs, suggest features, or contribute pull requests, please visit the
+          <a href="https://github.com/LucasValeQueiroz/github-achievements-tracker/issues" target="_blank" rel="noopener noreferrer">GitHub Issues tracker</a>.
+        </p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>MIT License · GitHub Achievements Tracker</span>
+      <a href="./">Open Interactive Dashboard →</a>
+    </div>
+  </footer>
+</body>
+</html>
