@@ -128,6 +128,50 @@ a:hover {
   border-color: var(--accent);
 }
 
+.star-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+  background: color-mix(in srgb, var(--tier-gold) 14%, var(--bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--tier-gold) 45%, var(--border));
+  transition: transform 0.12s ease, border-color 0.15s ease;
+}
+
+.star-cta:hover {
+  text-decoration: none;
+  border-color: var(--tier-gold);
+  transform: translateY(-1px);
+}
+
+.quick-examples {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.example-chip {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.example-chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .main-content {
   flex: 1;
   padding: 32px 0 64px;
