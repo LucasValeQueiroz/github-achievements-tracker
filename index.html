@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub Achievements Tracker</title>
+  <meta name="description" content="Interactive GitHub Profile Achievements tracker & toolkit powered by the GitHub REST API." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏆</text></svg>" />
+  <link rel="stylesheet" href="src/css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="./">
+        <span class="brand-icon" aria-hidden="true">🏆</span>
+        <span data-i18n="appTitle">GitHub Achievements Tracker</span>
+      </a>
+      <nav class="topbar-actions" aria-label="Primary">
+        <a class="nav-link" href="docs.html" data-i18n="docsLink">Documentação da API</a>
+        <a class="nav-link" href="https://github.com/LucasValeQueiroz/github-achievements-tracker" target="_blank" rel="noopener noreferrer" data-i18n="repoLink">Repositório</a>
+        <button id="lang-toggle" class="icon-btn" type="button" aria-label="Switch language">PT / EN</button>
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme">☀️</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <section class="hero">
+      <h1 data-i18n="appTitle">GitHub Achievements Tracker</h1>
+      <p class="hero-subtitle" data-i18n="appSubtitle">
+        Acompanhe seu progresso real nas conquistas do GitHub via REST API, gere trailers Co-authored-by e exporte badges para seu Profile README.
+      </p>
+
+      <form id="search-form" class="search-card" autocomplete="off">
+        <div class="search-row">
+          <input
+            id="username-input"
+            type="text"
+            class="input"
+            required
+            placeholder="Digite um usuário do GitHub (ex: LucasValeQueiroz)"
+            data-i18n-placeholder="searchPlaceholder"
+            aria-label="GitHub username"
+          />
+          <button id="search-submit" class="btn btn-primary" type="submit" data-i18n="searchButton">
+            Analisar perfil
+          </button>
+        </div>
+
+        <details class="token-drawer">
+          <summary data-i18n="tokenToggle">Token opcional (aumenta rate limit)</summary>
+          <div class="token-drawer-body">
+            <input
+              id="token-input"
+              type="password"
+              class="input"
+              placeholder="ghp_... (fica apenas no seu navegador)"
+              data-i18n-placeholder="tokenPlaceholder"
+              aria-label="Optional GitHub Personal Access Token"
+            />
+            <p class="muted small" data-i18n="tokenHint">
+              Opcional: a API pública permite 60 req/h por IP; com token pessoal sobe para 5.000 req/h. Nunca enviado a terceiros.
+            </p>
+          </div>
+        </details>
+      </form>
+
+      <div id="status-banner" class="status-banner hidden" role="status" aria-live="polite"></div>
+    </section>
+
+    <div id="dashboard" class="dashboard hidden">
+      <section id="profile-section" class="profile-card"></section>
+
+      <section id="kpi-grid" class="kpi-grid" aria-label="Key metrics"></section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <h2 data-i18n="sectionAchievements">Conquistas Ativas (Achievements)</h2>
+            <p class="muted" data-i18n="sectionAchievementsSub">
+              Progresso calculado automaticamente pela GitHub API onde disponível, com ajuste manual para métricas privadas/Discussions.
+            </p>
+          </div>
+          <span id="rate-limit-pill" class="pill muted"></span>
+        </div>
+        <div id="achievements-grid" class="achievements-grid"></div>
+      </section>
+
+      <section class="two-col-grid">
+        <div class="panel">
+          <h2 data-i18n="sectionNextSteps">Próximos passos recomendados</h2>
+          <ol id="recommendations-list" class="recommendations-list"></ol>
+        </div>
+        <div class="panel">
+          <h2 data-i18n="sectionTopRepos">Top Repositórios Públicos (Starstruck)</h2>
+          <div id="top-repos-list" class="repos-list"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 data-i18n="sectionToolkit">Ferramentas Práticas</h2>
+        <div id="toolkit-mount" class="toolkit-grid"></div>
+      </section>
+
+      <section class="section">
+        <h2 data-i18n="sectionHighlights">Profile Highlights &amp; Aposentados</h2>
+        <div id="highlights-mount" class="two-col-grid"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>MIT License · Built with the GitHub REST API</span>
+      <a href="docs.html" data-i18n="docsLink">Documentação da API</a>
+    </div>
+  </footer>
+
+  <script type="module" src="src/js/app.js"></script>
+</body>
+</html>
