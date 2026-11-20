@@ -13,6 +13,7 @@ import {
   SKIN_TONE_STORAGE_KEY,
   getSkinToneOption,
 } from './skin-tones.js';
+import { recordProfileSnapshot, clearProfileHistory } from './history.js';
 import { t } from './i18n.js';
 
 function escapeHtml(value) {
@@ -121,6 +122,16 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
         <a class="btn" href="${escapeHtml(GITHUB_APPEARANCE_URL)}" target="_blank" rel="noopener noreferrer">
           ${escapeHtml(t(lang, 'skinToneAction'))}
         </a>
+      </div>
+    </article>
+
+    <article class="panel">
+      <h3>📈 ${escapeHtml(t(lang, 'historyTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'historyDesc'))}</p>
+      <div id="history-deltas" class="history-deltas"></div>
+      <div id="history-list" class="history-list"></div>
+      <div class="btn-row">
+        <button id="clear-history-btn" class="btn" type="button">${escapeHtml(t(lang, 'historyClear'))}</button>
       </div>
     </article>
 
@@ -244,6 +255,60 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
     const btn = event.target.closest('.skin-tone-btn');
     if (!btn) return;
     renderSkinTone(btn.dataset.tone);
+  });
+
+  const historyDeltasEl = container.querySelector('#history-deltas');
+  const historyListEl = container.querySelector('#history-list');
+  const clearHistoryBtn = container.querySelector('#clear-history-btn');
+
+  const formatSigned = (num) => (num > 0 ? `+${num}` : String(num));
+
+  const renderHistory = (historyState) => {
+    if (!historyDeltasEl || !historyListEl) return;
+    if (!historyState.delta) {
+      historyDeltasEl.innerHTML = `<p class="small muted">${escapeHtml(t(lang, 'historyFirst'))}</p>`;
+    } else if (!historyState.delta.hasChanges) {
+      historyDeltasEl.innerHTML = `<p class="small muted">${escapeHtml(t(lang, 'historyNoChange'))}</p>`;
+    } else {
+      const d = historyState.delta;
+      const pills = [
+        { label: 'PRs', val: d.mergedPullRequests },
+        { label: 'Top ⭐', val: d.maxRepoStars },
+        { label: 'Total ⭐', val: d.totalStars },
+        { label: '🏆', val: d.unlockedCount },
+      ]
+        .filter((p) => p.val !== 0)
+        .map(
+          (p) =>
+            `<span class="delta-pill ${p.val > 0 ? 'positive' : ''}">${escapeHtml(formatSigned(p.val))} ${escapeHtml(p.label)}</span>`
+        )
+        .join('');
+      historyDeltasEl.innerHTML = pills;
+    }
+
+    const recent = [...historyState.snapshots].reverse().slice(0, 5);
+    historyListEl.innerHTML = recent
+      .map((snap) => {
+        const dateLabel = formatEstimatedDate(String(snap.recordedAt).slice(0, 10), lang);
+        return `
+          <div class="history-row">
+            <strong>${escapeHtml(dateLabel)}</strong>
+            <span class="small muted">${snap.mergedPullRequests} PRs · ${snap.totalStars} ⭐ · ${snap.unlockedCount} 🏆</span>
+          </div>
+        `;
+      })
+      .join('');
+  };
+
+  const initialHistory = recordProfileSnapshot(analysis);
+  renderHistory(initialHistory);
+
+  clearHistoryBtn?.addEventListener('click', () => {
+    clearProfileHistory(analysis.profile.login);
+    if (historyDeltasEl) {
+      historyDeltasEl.innerHTML = `<p class="small muted">${escapeHtml(t(lang, 'historyCleared'))}</p>`;
+    }
+    if (historyListEl) historyListEl.innerHTML = '';
   });
 
   const downloadJsonBtn = container.querySelector('#download-json-btn');
