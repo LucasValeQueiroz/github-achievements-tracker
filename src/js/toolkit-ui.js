@@ -6,6 +6,7 @@
 import { resolveCollaborator, buildCoAuthoredCommit } from './coauthor.js';
 import { buildMarkdownReport, buildJsonReport } from './exporter.js';
 import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
+import { calculatePullSharkRoadmap, formatEstimatedDate } from './pace-calculator.js';
 import { t } from './i18n.js';
 
 function escapeHtml(value) {
@@ -83,6 +84,18 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
     </article>
 
     <article class="panel">
+      <h3>🦈 ${escapeHtml(t(lang, 'paceTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'paceDesc'))}</p>
+      <div class="pace-controls">
+        <label class="small" for="pace-slider">
+          ${escapeHtml(t(lang, 'paceLabel'))}: <strong id="pace-value">3</strong> ${escapeHtml(t(lang, 'paceUnit'))}
+        </label>
+        <input id="pace-slider" class="pace-slider" type="range" min="0.5" max="10" step="0.5" value="3" />
+      </div>
+      <div id="pace-roadmap" class="pace-roadmap"></div>
+    </article>
+
+    <article class="panel">
       <h3>📋 ${escapeHtml(t(lang, 'exportTitle'))}</h3>
       <p class="small muted">${escapeHtml(t(lang, 'exportDesc'))}</p>
       <pre id="markdown-preview" class="code-block" style="margin-top:12px;max-height:200px">${escapeHtml(markdownSnippet)}</pre>
@@ -129,6 +142,40 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
   const copyMdBtn = container.querySelector('#copy-md-btn');
   copyMdBtn?.addEventListener('click', () => {
     copyText(markdownSnippet, copyMdBtn, t(lang, 'copyMarkdown'), t(lang, 'copied'));
+  });
+
+  const paceSlider = container.querySelector('#pace-slider');
+  const paceValue = container.querySelector('#pace-value');
+  const paceRoadmapEl = container.querySelector('#pace-roadmap');
+  const currentMergedPrs = analysis.metrics?.mergedPrCount ?? 0;
+
+  const renderPaceRows = (prsPerDay) => {
+    if (!paceRoadmapEl) return;
+    if (paceValue) paceValue.textContent = String(prsPerDay);
+    const items = calculatePullSharkRoadmap(currentMergedPrs, prsPerDay);
+    paceRoadmapEl.innerHTML = items
+      .map((item) => {
+        const statusText = item.reached
+          ? `✅ ${escapeHtml(t(lang, 'paceReached'))}`
+          : `${escapeHtml(t(lang, 'paceRemaining', { count: item.remaining }))} · ${escapeHtml(
+              t(lang, 'paceDays', {
+                days: item.daysNeeded,
+                date: formatEstimatedDate(item.estimatedDateIso, lang),
+              })
+            )}`;
+        return `
+          <div class="pace-row ${item.reached ? 'pace-reached' : ''}">
+            <strong>${escapeHtml(item.label)} (${item.target})</strong>
+            <span class="small muted">${statusText}</span>
+          </div>
+        `;
+      })
+      .join('');
+  };
+
+  renderPaceRows(Number(paceSlider?.value || 3));
+  paceSlider?.addEventListener('input', (event) => {
+    renderPaceRows(Number(event.target.value));
   });
 
   const downloadJsonBtn = container.querySelector('#download-json-btn');
