@@ -48,8 +48,8 @@ test('extractMergedPrCount reads analysis.metrics.mergedPullRequests from analyz
   const analysis = analyzeDashboardData({
     profile: { login: 'LucasValeQueiroz' },
     repositories: [],
-    mergedPrCount: 27,
-    closedItems: [],
+    mergedPullRequests: 27,
+    recentClosedItems: [],
   });
   assert.equal(extractMergedPrCount(analysis), 27);
   assert.equal(extractMergedPrCount(null), 0);
