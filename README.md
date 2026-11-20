@@ -21,6 +21,10 @@ Interactive dashboard and developer toolkit powered by the **GitHub REST API v3*
 - **Galaxy Brain Q&A Finder:** Detects primary languages from owned repositories and generates filtered GitHub Discussions search links for open, unanswered Q&A threads.
 - **Profile README & JSON Exporter:** Builds ready-to-paste Markdown tables with Shields.io badges and downloadable JSON reports.
 - **Shareable Profile Card Generator:** Exports dark/light 1200×630 PNG & SVG profile cards ready for LinkedIn, portfolios, and social sharing.
+- **Pull Shark Pace Calculator:** Interactive daily PR pace slider estimating remaining days and target dates for Bronze (16), Silver (128), and Gold (1024).
+- **Side-by-Side Profile Comparator:** Compares any two GitHub users across merged PRs, top/total stars, active achievements, and followers.
+- **Local Progress History (`localStorage`):** Automatically saves deduplicated browser-side snapshots per username and highlights deltas (`+PRs`, `+⭐`, `+🏆`) between visits.
+- **Skin Tone Preference Preview:** Interactive 6-tone preview for **Quickdraw** and **Starstruck** with a direct link to GitHub Appearance settings.
 - **GitHub Flow CLI (`Ship-PR`):** Zero-dependency Node.js CLI (`scripts/ship-pr.mjs`) to turn everyday real edits into short-lived branches + merged PRs in one command, with secret-file guardrails and verified `-CoAuthor` trailer resolution.
 - **Bilingual & Accessible UI:** Instant **PT-BR / EN** language toggle, **Dark / Light** theme switcher, live API rate-limit indicator, and optional client-side Personal Access Token support (for 5,000 req/hr).
 
@@ -78,17 +82,25 @@ node scripts/ship-pr.mjs "fix: pair fix" -CoAuthor collaborator-username -DryRun
 │       ├── analyzer.js          # Quickdraw detector, repo ranker & insights
 │       ├── card-generator.js    # Shareable 1200x630 PNG/SVG card renderer
 │       ├── coauthor.js          # Co-authored-by trailer generator
+│       ├── comparator.js        # Side-by-side profile comparison engine
 │       ├── exporter.js          # Markdown badge & JSON report exporter
+│       ├── history.js           # Local snapshot history & delta tracker
 │       ├── i18n.js              # PT-BR & EN translations
+│       ├── pace-calculator.js   # Pull Shark daily pace & roadmap calculator
+│       ├── skin-tones.js        # Quickdraw & Starstruck skin-tone preview
 │       ├── toolkit-ui.js        # Interactive toolkit widgets
 │       └── app.js               # Main controller & DOM renderer
 └── tests/
     ├── achievements.test.mjs
     ├── analyzer.test.mjs
     ├── card-generator.test.mjs
+    ├── comparator.test.mjs
     ├── exporter.test.mjs
+    ├── history.test.mjs
     ├── metadata.test.mjs
-    └── ship-pr.test.mjs
+    ├── pace-calculator.test.mjs
+    ├── ship-pr.test.mjs
+    └── skin-tones.test.mjs
 ```
 
 ---

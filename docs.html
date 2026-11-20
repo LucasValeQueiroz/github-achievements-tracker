@@ -86,16 +86,23 @@
 
       <article class="panel">
         <h2>3. Modular Architecture</h2>
-        <pre class="code-block">src/
+        <pre class="code-block">scripts/
+└── ship-pr.mjs             # One-command GitHub Flow CLI with Co-authored-by &amp; secret guardrails
+src/
 ├── css/styles.css          # Responsive GitHub-inspired design system (Dark/Light)
 └── js/
     ├── achievements.js     # Catalog of active, highlight, and retired badges + tier math
     ├── github-api.js       # Zero-dependency GitHub REST API v3 client
     ├── analyzer.js         # Quickdraw 5-min detector, repo ranker, Q&amp;A finder
+    ├── card-generator.js   # Shareable 1200x630 PNG/SVG profile card renderer
     ├── coauthor.js         # Verified GitHub noreply Co-authored-by generator
+    ├── comparator.js       # Side-by-side GitHub profile comparison engine
     ├── exporter.js         # Shields.io Profile README Markdown &amp; JSON exporter
+    ├── history.js          # Local progress snapshot history &amp; delta tracker (localStorage)
     ├── i18n.js             # PT-BR and EN localization layer
-    ├── toolkit-ui.js       # Interactive Co-author, Galaxy Brain, and Export widgets
+    ├── pace-calculator.js  # Pull Shark daily pace &amp; target-date roadmap estimator
+    ├── skin-tones.js       # Quickdraw &amp; Starstruck emoji skin-tone preference preview
+    ├── toolkit-ui.js       # Interactive toolkit panels controller
     └── app.js              # Main dashboard state &amp; DOM renderer</pre>
       </article>
 
