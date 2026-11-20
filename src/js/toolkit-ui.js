@@ -7,6 +7,12 @@ import { resolveCollaborator, buildCoAuthoredCommit } from './coauthor.js';
 import { buildMarkdownReport, buildJsonReport } from './exporter.js';
 import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
 import { calculatePullSharkRoadmap, formatEstimatedDate } from './pace-calculator.js';
+import {
+  GITHUB_APPEARANCE_URL,
+  SKIN_TONE_OPTIONS,
+  SKIN_TONE_STORAGE_KEY,
+  getSkinToneOption,
+} from './skin-tones.js';
 import { t } from './i18n.js';
 
 function escapeHtml(value) {
@@ -96,6 +102,29 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
     </article>
 
     <article class="panel">
+      <h3>👋 ${escapeHtml(t(lang, 'skinToneTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'skinToneDesc'))}</p>
+      <div id="skin-tone-picker" class="skin-tone-picker" role="group" aria-label="${escapeHtml(t(lang, 'skinToneTitle'))}">
+        ${SKIN_TONE_OPTIONS.map(
+          (opt) => `
+            <button
+              type="button"
+              class="skin-tone-btn"
+              data-tone="${escapeHtml(opt.id)}"
+              title="${escapeHtml(lang === 'en' ? opt.labelEn : opt.labelPt)}"
+            >${opt.emoji}</button>
+          `
+        ).join('')}
+      </div>
+      <div id="skin-tone-preview" class="skin-tone-preview"></div>
+      <div class="btn-row">
+        <a class="btn" href="${escapeHtml(GITHUB_APPEARANCE_URL)}" target="_blank" rel="noopener noreferrer">
+          ${escapeHtml(t(lang, 'skinToneAction'))}
+        </a>
+      </div>
+    </article>
+
+    <article class="panel">
       <h3>📋 ${escapeHtml(t(lang, 'exportTitle'))}</h3>
       <p class="small muted">${escapeHtml(t(lang, 'exportDesc'))}</p>
       <pre id="markdown-preview" class="code-block" style="margin-top:12px;max-height:200px">${escapeHtml(markdownSnippet)}</pre>
@@ -176,6 +205,45 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
   renderPaceRows(Number(paceSlider?.value || 3));
   paceSlider?.addEventListener('input', (event) => {
     renderPaceRows(Number(event.target.value));
+  });
+
+  const skinTonePicker = container.querySelector('#skin-tone-picker');
+  const skinTonePreview = container.querySelector('#skin-tone-preview');
+  let savedToneId = 'default';
+  try {
+    savedToneId = localStorage.getItem(SKIN_TONE_STORAGE_KEY) || 'default';
+  } catch {
+    savedToneId = 'default';
+  }
+
+  const renderSkinTone = (toneId) => {
+    const opt = getSkinToneOption(toneId);
+    const label = lang === 'en' ? opt.labelEn : opt.labelPt;
+    skinTonePicker?.querySelectorAll('.skin-tone-btn').forEach((btn) => {
+      const isSelected = btn.dataset.tone === opt.id;
+      btn.classList.toggle('active', isSelected);
+      btn.setAttribute('aria-pressed', String(isSelected));
+    });
+    if (skinTonePreview) {
+      skinTonePreview.innerHTML = `
+        <span class="skin-swatch" style="background:${escapeHtml(opt.swatch)}"></span>
+        <span>${opt.emoji} <strong>Quickdraw</strong> &amp; <strong>Starstruck</strong> — ${escapeHtml(
+          t(lang, 'skinToneSelected', { label })
+        )}</span>
+      `;
+    }
+    try {
+      localStorage.setItem(SKIN_TONE_STORAGE_KEY, opt.id);
+    } catch {
+      // Ignore private browsing storage errors
+    }
+  };
+
+  renderSkinTone(savedToneId);
+  skinTonePicker?.addEventListener('click', (event) => {
+    const btn = event.target.closest('.skin-tone-btn');
+    if (!btn) return;
+    renderSkinTone(btn.dataset.tone);
   });
 
   const downloadJsonBtn = container.querySelector('#download-json-btn');
