@@ -6,7 +6,7 @@
 import { resolveCollaborator, buildCoAuthoredCommit } from './coauthor.js';
 import { buildMarkdownReport, buildJsonReport } from './exporter.js';
 import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
-import { calculatePullSharkRoadmap, formatEstimatedDate } from './pace-calculator.js';
+import { calculatePullSharkRoadmap, extractMergedPrCount, formatEstimatedDate } from './pace-calculator.js';
 import {
   GITHUB_APPEARANCE_URL,
   SKIN_TONE_OPTIONS,
@@ -176,7 +176,7 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
   const paceSlider = container.querySelector('#pace-slider');
   const paceValue = container.querySelector('#pace-value');
   const paceRoadmapEl = container.querySelector('#pace-roadmap');
-  const currentMergedPrs = analysis.metrics?.mergedPrCount ?? 0;
+  const currentMergedPrs = extractMergedPrCount(analysis);
 
   const renderPaceRows = (prsPerDay) => {
     if (!paceRoadmapEl) return;

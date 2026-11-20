@@ -10,6 +10,15 @@ export const PULL_SHARK_MILESTONES = [
 ];
 
 /**
+ * Extracts the merged PR count from an analysis object produced by analyzeDashboardData.
+ * @param {object} analysis
+ */
+export function extractMergedPrCount(analysis) {
+  const raw = analysis?.metrics?.mergedPullRequests ?? 0;
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+}
+
+/**
  * Computes remaining PRs, days needed, and estimated completion dates for each Pull Shark tier.
  * @param {number} currentPrs
  * @param {number} prsPerDay

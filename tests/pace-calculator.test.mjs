@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   PULL_SHARK_MILESTONES,
   calculatePullSharkRoadmap,
+  extractMergedPrCount,
   formatEstimatedDate,
 } from '../src/js/pace-calculator.js';
+import { analyzeDashboardData } from '../src/js/analyzer.js';
 
 test('calculatePullSharkRoadmap computes exact remaining counts and dates', () => {
   const ref = new Date(Date.UTC(2026, 10, 19)); // 2026-11-19
@@ -40,4 +42,15 @@ test('formatEstimatedDate formats ISO dates in PT-BR and EN', () => {
   const en = formatEstimatedDate('2026-12-24', 'en');
   assert.match(pt, /2026/);
   assert.match(en, /Dec.*24.*2026/);
+});
+
+test('extractMergedPrCount reads analysis.metrics.mergedPullRequests from analyzeDashboardData', () => {
+  const analysis = analyzeDashboardData({
+    profile: { login: 'LucasValeQueiroz' },
+    repositories: [],
+    mergedPrCount: 27,
+    closedItems: [],
+  });
+  assert.equal(extractMergedPrCount(analysis), 27);
+  assert.equal(extractMergedPrCount(null), 0);
 });
