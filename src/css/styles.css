@@ -695,6 +695,34 @@ a:hover {
   font-size: 0.86rem;
 }
 
+.compare-output {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.compare-table th:not(:first-child),
+.compare-table td:not(:first-child) {
+  text-align: right;
+}
+
+.compare-win {
+  color: var(--success);
+  font-weight: 700;
+}
+
 .footer {
   border-top: 1px solid var(--border);
   padding: 18px 0;

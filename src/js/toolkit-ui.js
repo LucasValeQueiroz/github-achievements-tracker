@@ -14,6 +14,9 @@ import {
   getSkinToneOption,
 } from './skin-tones.js';
 import { recordProfileSnapshot, clearProfileHistory } from './history.js';
+import { compareProfiles } from './comparator.js';
+import { fetchUserDashboardData } from './github-api.js';
+import { analyzeDashboardData } from './analyzer.js';
 import { t } from './i18n.js';
 
 function escapeHtml(value) {
@@ -133,6 +136,24 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
       <div class="btn-row">
         <button id="clear-history-btn" class="btn" type="button">${escapeHtml(t(lang, 'historyClear'))}</button>
       </div>
+    </article>
+
+    <article class="panel">
+      <h3>⚔️ ${escapeHtml(t(lang, 'compareTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'compareDesc'))}</p>
+      <form id="compare-form" class="token-drawer-body" style="margin-top:12px">
+        <input
+          id="compare-username"
+          class="input"
+          type="text"
+          required
+          placeholder="${escapeHtml(t(lang, 'comparePlaceholder'))}"
+        />
+        <div class="btn-row">
+          <button class="btn btn-primary" type="submit">${escapeHtml(t(lang, 'compareBtn'))}</button>
+        </div>
+      </form>
+      <div id="compare-output" class="compare-output hidden"></div>
     </article>
 
     <article class="panel">
@@ -309,6 +330,64 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
       historyDeltasEl.innerHTML = `<p class="small muted">${escapeHtml(t(lang, 'historyCleared'))}</p>`;
     }
     if (historyListEl) historyListEl.innerHTML = '';
+  });
+
+  const compareForm = container.querySelector('#compare-form');
+  const compareOutput = container.querySelector('#compare-output');
+
+  compareForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const otherUsername = container.querySelector('#compare-username')?.value.trim();
+    if (!otherUsername || !compareOutput) return;
+
+    compareOutput.classList.remove('hidden');
+    compareOutput.innerHTML = `<p class="small muted">${escapeHtml(t(lang, 'loading'))}</p>`;
+
+    try {
+      const otherRaw = await fetchUserDashboardData(otherUsername, { token: getToken() });
+      const otherAnalysis = analyzeDashboardData(otherRaw);
+      const cmp = compareProfiles(analysis, otherAnalysis);
+      const rowsHtml = cmp.rows
+        .map((row) => {
+          const metricLabel = t(lang, `compareMetrics.${row.key}`);
+          return `
+            <tr>
+              <td>${escapeHtml(metricLabel)}</td>
+              <td class="${row.winner === 'left' ? 'compare-win' : ''}">${row.leftValue}</td>
+              <td class="${row.winner === 'right' ? 'compare-win' : ''}">${row.rightValue}</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      compareOutput.innerHTML = `
+        <p class="small" style="margin-bottom:8px">
+          <strong>${escapeHtml(
+            t(lang, 'compareScore', {
+              left: cmp.left.login,
+              right: cmp.right.login,
+              leftWins: cmp.score.leftWins,
+              rightWins: cmp.score.rightWins,
+            })
+          )}</strong>
+        </p>
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>${escapeHtml(t(lang, 'compareMetric'))}</th>
+              <th>@${escapeHtml(cmp.left.login)}</th>
+              <th>@${escapeHtml(cmp.right.login)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      const msgKey = err?.code === 'RATE_LIMITED' ? 'errorRateLimit' : 'errorNotFound';
+      compareOutput.innerHTML = `<p class="small" style="color:var(--danger)">${escapeHtml(t(lang, msgKey))}</p>`;
+    }
   });
 
   const downloadJsonBtn = container.querySelector('#download-json-btn');
