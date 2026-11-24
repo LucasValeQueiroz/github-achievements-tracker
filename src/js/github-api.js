@@ -201,6 +201,103 @@ export async function fetchRecentClosedItems(username, options = {}) {
 }
 
 /**
+ * Queries public merged PRs with zero reviews (direct YOLO achievement evidence).
+ * @param {string} username
+ * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
+ */
+export async function fetchYoloMergedPrsCount(username, options = {}) {
+  const cleanUser = String(username || '').trim();
+  const q = encodeURIComponent(`author:${cleanUser} type:pr is:merged review:none`);
+  const result = await githubRequest(`/search/issues?q=${q}&per_page=1`, options);
+  return {
+    data: Number(result.data?.total_count || 0),
+    rateLimit: result.rateLimit
+  };
+}
+
+/**
+ * Queries public commits authored by the user containing a Co-authored-by trailer.
+ * @param {string} username
+ * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
+ */
+export async function fetchCoAuthoredCommitsCount(username, options = {}) {
+  const cleanUser = String(username || '').trim();
+  const q = encodeURIComponent(`author:${cleanUser} Co-authored-by`);
+  const result = await githubRequest(`/search/commits?q=${q}&per_page=1`, options);
+  return {
+    data: Number(result.data?.total_count || 0),
+    rateLimit: result.rateLimit
+  };
+}
+
+/**
+ * Fetches GraphQL-only achievement metrics (Galaxy Brain accepted answers + Public Sponsor count)
+ * when an authenticated GitHub token is provided.
+ * @param {string} username
+ * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
+ */
+export async function fetchGraphqlAchievementMetrics(username, options = {}) {
+  const { token = '', fetchImpl = globalThis.fetch } = options;
+  const trimmedToken = String(token || '').trim();
+  if (!trimmedToken || typeof fetchImpl !== 'function') {
+    return null;
+  }
+
+  const query = `query($login: String!) {
+    user(login: $login) {
+      repositoryDiscussionComments(onlyAnswers: true) { totalCount }
+      sponsoring { totalCount }
+      pullRequests(states: MERGED) { totalCount }
+    }
+  }`;
+
+  const response = await fetchImpl(`${GITHUB_API_BASE}/graphql`, {
+    method: 'POST',
+    headers: {
+      ...buildHeaders(trimmedToken),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ query, variables: { login: String(username || '').trim() } })
+  });
+
+  if (!response.ok) return null;
+  const payload = await response.json();
+  const user = payload?.data?.user;
+  if (!user) return null;
+
+  return {
+    acceptedAnswers: Number(user.repositoryDiscussionComments?.totalCount ?? 0),
+    sponsorships: Number(user.sponsoring?.totalCount ?? 0),
+    mergedPullRequests: Number(user.pullRequests?.totalCount ?? 0)
+  };
+}
+
+/**
+ * Loads the GitHub-Actions-synced static snapshot (`data/profile-snapshot.json`) when running
+ * without a personal token in the browser, so the default hosted profile displays live
+ * Galaxy Brain & Sponsor counts automatically without manual inputs.
+ * @param {string} username
+ * @param {{ fetchImpl?: typeof fetch }} [options]
+ */
+export async function fetchLocalProfileSnapshot(username, options = {}) {
+  const { fetchImpl = globalThis.fetch } = options;
+  if (typeof fetchImpl !== 'function' || typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const res = await fetchImpl('./data/profile-snapshot.json', { cache: 'no-cache' });
+    if (!res.ok) return null;
+    const snap = await res.json();
+    if (String(snap?.login || '').toLowerCase() !== String(username || '').trim().toLowerCase()) {
+      return null;
+    }
+    return snap;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetches all data required to render the GitHub Achievements dashboard.
  * @param {string} username
  * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
@@ -209,18 +306,60 @@ export async function fetchUserDashboardData(username, options = {}) {
   const profileRes = await fetchUserProfile(username, options);
   const login = profileRes.data.login;
 
-  const [reposRes, mergedPrsRes, closedItemsRes] = await Promise.all([
-    fetchUserRepositories(login, options),
-    fetchMergedPullRequestsCount(login, options),
-    fetchRecentClosedItems(login, options)
-  ]);
+  const [reposRes, mergedPrsRes, closedItemsRes, yoloRes, coAuthorRes, graphqlMetrics, snapshot] =
+    await Promise.all([
+      fetchUserRepositories(login, options),
+      fetchMergedPullRequestsCount(login, options),
+      fetchRecentClosedItems(login, options),
+      fetchYoloMergedPrsCount(login, options).catch(() => null),
+      fetchCoAuthoredCommitsCount(login, options).catch(() => null),
+      fetchGraphqlAchievementMetrics(login, options).catch(() => null),
+      fetchLocalProfileSnapshot(login, options).catch(() => null)
+    ]);
+
+  const autoMetrics = {};
+  const autoSources = {};
+
+  if (typeof yoloRes?.data === 'number') {
+    autoMetrics.yoloUnreviewedPrs = yoloRes.data;
+    autoSources.yolo = 'api';
+  }
+  if (typeof coAuthorRes?.data === 'number') {
+    autoMetrics.coAuthoredPullRequests = coAuthorRes.data;
+    autoSources.coAuthoredPullRequests = 'api';
+  }
+  if (graphqlMetrics) {
+    autoMetrics.acceptedAnswers = graphqlMetrics.acceptedAnswers;
+    autoMetrics.sponsorships = graphqlMetrics.sponsorships;
+    autoSources.acceptedAnswers = 'api';
+    autoSources.sponsorships = 'api';
+  } else if (snapshot) {
+    if (typeof snapshot.acceptedAnswers === 'number') {
+      autoMetrics.acceptedAnswers = snapshot.acceptedAnswers;
+      autoSources.acceptedAnswers = 'api';
+    }
+    if (typeof snapshot.sponsorships === 'number') {
+      autoMetrics.sponsorships = snapshot.sponsorships;
+      autoSources.sponsorships = 'api';
+    }
+    if (autoMetrics.coAuthoredPullRequests === undefined && typeof snapshot.coAuthoredCommits === 'number') {
+      autoMetrics.coAuthoredPullRequests = snapshot.coAuthoredCommits;
+      autoSources.coAuthoredPullRequests = 'api';
+    }
+    if (autoMetrics.yoloUnreviewedPrs === undefined && typeof snapshot.yoloUnreviewedPrs === 'number') {
+      autoMetrics.yoloUnreviewedPrs = snapshot.yoloUnreviewedPrs;
+      autoSources.yolo = 'api';
+    }
+  }
 
   return {
     profile: profileRes.data,
     repositories: reposRes.data,
-    mergedPullRequests: mergedPrsRes.data.totalCount,
+    mergedPullRequests: graphqlMetrics?.mergedPullRequests ?? mergedPrsRes.data.totalCount,
     sampleMergedPrs: mergedPrsRes.data.sampleItems,
     recentClosedItems: closedItemsRes.data,
+    autoMetrics,
+    autoSources,
     rateLimit: closedItemsRes.rateLimit || mergedPrsRes.rateLimit || reposRes.rateLimit || profileRes.rateLimit,
     fetchedAt: new Date().toISOString()
   };
