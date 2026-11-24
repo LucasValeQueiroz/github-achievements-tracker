@@ -146,15 +146,37 @@ export function analyzeDashboardData(rawData, manualOverrides = {}) {
   const languages = extractPrimaryLanguages(repositories, 5);
   const galaxyBrainLinks = buildGalaxyBrainSearchLinks(languages);
 
+  const autoMetrics = rawData?.autoMetrics || {};
+  const autoSources = rawData?.autoSources || {};
+
+  const hasManual = (key) => manualOverrides[key] !== undefined && manualOverrides[key] !== null;
+
+  const yoloAutoDetected =
+    typeof autoMetrics.yoloUnreviewedPrs === 'number'
+      ? autoMetrics.yoloUnreviewedPrs > 0
+      : mergedPullRequests > 0;
+
   const metrics = {
     mergedPullRequests,
     maxRepoStars,
     totalStars,
     quickdrawMatches: quickdrawEvidence.length,
-    coAuthoredPullRequests: Number(manualOverrides.coAuthoredPullRequests || 0),
-    acceptedAnswers: Number(manualOverrides.acceptedAnswers || 0),
-    sponsorships: Number(manualOverrides.sponsorships || 0),
-    yoloUnlocked: manualOverrides.yoloUnlocked ?? mergedPullRequests > 0
+    coAuthoredPullRequests: Number(
+      hasManual('coAuthoredPullRequests')
+        ? manualOverrides.coAuthoredPullRequests
+        : (autoMetrics.coAuthoredPullRequests ?? 0)
+    ),
+    acceptedAnswers: Number(
+      hasManual('acceptedAnswers')
+        ? manualOverrides.acceptedAnswers
+        : (autoMetrics.acceptedAnswers ?? 0)
+    ),
+    sponsorships: Number(
+      hasManual('sponsorships')
+        ? manualOverrides.sponsorships
+        : (autoMetrics.sponsorships ?? 0)
+    ),
+    yoloUnlocked: hasManual('yoloUnlocked') ? Boolean(manualOverrides.yoloUnlocked) : yoloAutoDetected
   };
 
   const achievements = ACHIEVEMENTS_CATALOG.map((def) => {
@@ -163,10 +185,14 @@ export function analyzeDashboardData(rawData, manualOverrides = {}) {
 
     if (def.id === 'yolo') {
       rawValue = metrics.yoloUnlocked ? 1 : 0;
-      source = manualOverrides.yoloUnlocked !== undefined ? 'manual' : 'inferred';
+      source = hasManual('yoloUnlocked')
+        ? 'manual'
+        : autoSources.yolo || 'inferred';
     } else if (def.trackableViaApi === 'manual') {
       rawValue = metrics[def.metricKey] || 0;
-      source = 'manual';
+      source = hasManual(def.metricKey)
+        ? 'manual'
+        : autoSources[def.metricKey] || 'manual';
     } else {
       rawValue = metrics[def.metricKey] || 0;
       source = 'api';

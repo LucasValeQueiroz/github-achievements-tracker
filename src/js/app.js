@@ -14,11 +14,7 @@ const state = {
   theme: localStorage.getItem('gat_theme') || 'dark',
   rawData: null,
   analysis: null,
-  manualOverrides: {
-    coAuthoredPullRequests: 0,
-    acceptedAnswers: 0,
-    sponsorships: 0
-  }
+  manualOverrides: {}
 };
 
 const els = {
@@ -200,7 +196,7 @@ function renderAchievements(analysis) {
           : '';
 
       const manualControl =
-        ach.trackableViaApi === 'manual' && ach.id !== 'yolo'
+        ach.source === 'manual' && ach.id !== 'yolo'
           ? `<label class="manual-input-row">
               <span class="muted">${escapeHtml(t(state.lang, 'badgeManual'))}:</span>
               <input
@@ -347,6 +343,7 @@ async function loadUser(username) {
     const token = els.tokenInput.value.trim();
     const rawData = await fetchUserDashboardData(trimmed, { token });
     state.rawData = rawData;
+    state.manualOverrides = {};
 
     const url = new URL(window.location.href);
     url.searchParams.set('user', rawData.profile.login);

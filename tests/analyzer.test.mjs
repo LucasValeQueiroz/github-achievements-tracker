@@ -77,3 +77,38 @@ test('analyzeDashboardData merges API metrics and manual overrides', () => {
   assert.ok(buildGalaxyBrainSearchLinks(analysis.languages)[0].url.includes('JavaScript'));
   assert.equal(extractPrimaryLanguages(raw.repositories)[0].count, 2);
 });
+
+test('analyzeDashboardData auto-detects Galaxy Brain, YOLO, Pair Extraordinaire, and Sponsor from autoMetrics', () => {
+  const analysis = analyzeDashboardData({
+    profile: { login: 'LucasValeQueiroz', name: 'Lucas Vale', public_repos: 12 },
+    repositories: [{ name: 'astrobit', stargazers_count: 10, fork: false, language: 'JavaScript' }],
+    mergedPullRequests: 83,
+    recentClosedItems: [],
+    autoMetrics: {
+      acceptedAnswers: 4,
+      sponsorships: 1,
+      yoloUnreviewedPrs: 82,
+      coAuthoredPullRequests: 12
+    },
+    autoSources: {
+      acceptedAnswers: 'api',
+      sponsorships: 'api',
+      yolo: 'api',
+      coAuthoredPullRequests: 'api'
+    }
+  });
+
+  const byId = Object.fromEntries(analysis.achievements.map((a) => [a.id, a]));
+  assert.equal(byId['galaxy-brain'].source, 'api');
+  assert.equal(byId['galaxy-brain'].progress.value, 4);
+  assert.equal(byId['galaxy-brain'].progress.unlocked, true);
+
+  assert.equal(byId['yolo'].source, 'api');
+  assert.equal(byId['yolo'].progress.unlocked, true);
+
+  assert.equal(byId['pair-extraordinaire'].source, 'api');
+  assert.equal(byId['pair-extraordinaire'].progress.value, 12);
+
+  assert.equal(byId['public-sponsor'].source, 'api');
+  assert.equal(byId['public-sponsor'].progress.unlocked, true);
+});
