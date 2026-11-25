@@ -3,10 +3,12 @@
 ![GitHub Achievements Tracker Preview](assets/og-preview.png)
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-GitHub_Pages-2f81f7?style=for-the-badge&logo=github)](https://lucasvalequeiroz.github.io/github-achievements-tracker/)
-[![API Docs](https://img.shields.io/badge/Docs-GitHub_REST_API-3fb950?style=for-the-badge&logo=bookstack)](https://lucasvalequeiroz.github.io/github-achievements-tracker/docs.html)
+[![API Docs](https://img.shields.io/badge/Docs-GitHub_REST_%2B_GraphQL-3fb950?style=for-the-badge&logo=bookstack)](https://lucasvalequeiroz.github.io/github-achievements-tracker/docs.html)
+[![Tests](https://img.shields.io/badge/Node_Tests-31%2F31_Passing-2ea043?style=for-the-badge)](#local-development--tests)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-3fb950?style=for-the-badge)](#project-structure)
 [![License: MIT](https://img.shields.io/badge/License-MIT-e3b341?style=for-the-badge)](LICENSE)
 
-Interactive dashboard and developer toolkit powered by the **GitHub REST API v3** to inspect any GitHub profile's progress across **Achievements**, **Tiers**, **Profile Highlights**, and **Retired Badges** — 100% client-side with zero runtime dependencies.
+Interactive dashboard and developer toolkit powered by the **GitHub REST API v3 & GraphQL API** to inspect any GitHub profile's progress across **Achievements**, **Tiers**, **Profile Highlights**, and **Retired Badges** — 100% client-side with zero runtime dependencies.
 
 👉 **Try it live:** https://lucasvalequeiroz.github.io/github-achievements-tracker/  
 👉 **Check your own profile directly:** `https://lucasvalequeiroz.github.io/github-achievements-tracker/?user=YOUR_USERNAME`
@@ -15,7 +17,7 @@ Interactive dashboard and developer toolkit powered by the **GitHub REST API v3*
 
 ## ✨ Features
 
-- **Live GitHub REST API Analysis:** Tracks **Pull Shark** (merged public PRs), **Starstruck** (top starred owned repositories), and **Quickdraw** (issues or PRs closed within 5 minutes of creation).
+- **Live GitHub REST + GraphQL Auto-Detection:** Tracks **Pull Shark** (merged public PRs), **Starstruck** (top starred owned repositories), and **Quickdraw** (issues or PRs closed within 5 minutes of creation), plus automatic detection of **Galaxy Brain**, **YOLO**, **Pair Extraordinaire**, and **Public Sponsor** via GraphQL (with optional PAT), REST Search, and `data/profile-snapshot.json`.
 - **Tier Progress & Recommendations:** Calculates exact remaining counts across **Default → Bronze → Silver → Gold** tiers and prioritizes the closest unlockable milestones.
 - **Pair Extraordinaire Generator:** Resolves any real GitHub collaborator username via API into a verified `id+username@users.noreply.github.com` `Co-authored-by:` trailer and copy-ready `git commit` command.
 - **Galaxy Brain Q&A Finder:** Detects primary languages from owned repositories and generates filtered GitHub Discussions search links for open, unanswered Q&A threads.
