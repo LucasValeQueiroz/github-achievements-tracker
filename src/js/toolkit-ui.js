@@ -15,6 +15,7 @@ import {
 } from './skin-tones.js';
 import { recordProfileSnapshot, clearProfileHistory } from './history.js';
 import { compareProfiles } from './comparator.js';
+import { buildSocialSharePost, buildShareIntentUrl, buildTrackerShareUrl } from './social-post.js';
 import { fetchUserDashboardData } from './github-api.js';
 import { analyzeDashboardData } from './analyzer.js';
 import { t } from './i18n.js';
@@ -167,6 +168,20 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
         <button id="download-json-btn" class="btn" type="button">${escapeHtml(t(lang, 'downloadJson'))}</button>
       </div>
     </article>
+
+    <article class="panel">
+      <h3>📣 ${escapeHtml(t(lang, 'socialPostTitle'))}</h3>
+      <p class="small muted">${escapeHtml(t(lang, 'socialPostDesc'))}</p>
+      <div class="btn-row" style="margin-top:12px">
+        <button id="social-tab-linkedin" class="btn btn-primary" type="button" data-social-platform="linkedin">LinkedIn</button>
+        <button id="social-tab-x" class="btn" type="button" data-social-platform="x">X (Twitter)</button>
+      </div>
+      <pre id="social-post-preview" class="code-block" style="margin-top:12px;max-height:200px;white-space:pre-wrap"></pre>
+      <div class="btn-row">
+        <button id="copy-social-post-btn" class="btn btn-primary" type="button">${escapeHtml(t(lang, 'socialCopyPost'))}</button>
+        <a id="open-social-intent-link" class="btn" href="#" target="_blank" rel="noopener noreferrer">${escapeHtml(t(lang, 'socialOpenLinkedIn'))}</a>
+      </div>
+    </article>
   `;
 
   const coauthorForm = container.querySelector('#coauthor-form');
@@ -203,6 +218,40 @@ export function renderToolkit(container, analysis, { lang, theme = 'dark', getTo
   const copyMdBtn = container.querySelector('#copy-md-btn');
   copyMdBtn?.addEventListener('click', () => {
     copyText(markdownSnippet, copyMdBtn, t(lang, 'copyMarkdown'), t(lang, 'copied'));
+  });
+
+  const socialPreviewEl = container.querySelector('#social-post-preview');
+  const socialCopyBtn = container.querySelector('#copy-social-post-btn');
+  const socialIntentLink = container.querySelector('#open-social-intent-link');
+  const socialTabButtons = container.querySelectorAll('[data-social-platform]');
+  let activeSocialPlatform = 'linkedin';
+  let activeSocialText = '';
+
+  const renderSocialPost = (platform) => {
+    activeSocialPlatform = platform === 'x' ? 'x' : 'linkedin';
+    const baseUrl =
+      typeof window !== 'undefined' && window.location?.origin?.startsWith('http')
+        ? `${window.location.origin}${window.location.pathname}`
+        : undefined;
+    const shareUrl = buildTrackerShareUrl(analysis.profile?.login, baseUrl);
+    activeSocialText = buildSocialSharePost(analysis, { platform: activeSocialPlatform, lang, baseUrl });
+    if (socialPreviewEl) socialPreviewEl.textContent = activeSocialText;
+    if (socialIntentLink) {
+      socialIntentLink.href = buildShareIntentUrl(activeSocialPlatform, activeSocialText, shareUrl);
+      socialIntentLink.textContent =
+        activeSocialPlatform === 'x' ? t(lang, 'socialOpenX') : t(lang, 'socialOpenLinkedIn');
+    }
+    socialTabButtons.forEach((btn) => {
+      btn.classList.toggle('btn-primary', btn.dataset.socialPlatform === activeSocialPlatform);
+    });
+  };
+
+  renderSocialPost('linkedin');
+  socialTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => renderSocialPost(btn.dataset.socialPlatform));
+  });
+  socialCopyBtn?.addEventListener('click', () => {
+    copyText(activeSocialText, socialCopyBtn, t(lang, 'socialCopyPost'), t(lang, 'copied'));
   });
 
   const paceSlider = container.querySelector('#pace-slider');

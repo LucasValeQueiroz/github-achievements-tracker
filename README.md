@@ -4,7 +4,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-GitHub_Pages-2f81f7?style=for-the-badge&logo=github)](https://lucasvalequeiroz.github.io/github-achievements-tracker/)
 [![API Docs](https://img.shields.io/badge/Docs-GitHub_REST_%2B_GraphQL-3fb950?style=for-the-badge&logo=bookstack)](https://lucasvalequeiroz.github.io/github-achievements-tracker/docs.html)
-[![Tests](https://img.shields.io/badge/Node_Tests-31%2F31_Passing-2ea043?style=for-the-badge)](#local-development--tests)
+[![Tests](https://img.shields.io/badge/Node_Tests-35%2F35_Passing-2ea043?style=for-the-badge)](#local-development--tests)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-3fb950?style=for-the-badge)](#project-structure)
 [![License: MIT](https://img.shields.io/badge/License-MIT-e3b341?style=for-the-badge)](LICENSE)
 
