@@ -7,7 +7,9 @@
  * 1. Fetches `https://github.com/{login}?tab=achievements` server-side (no CORS block)
  *    to read official public achievement badges and tiers (x2/x3/x4).
  * 2. When `process.env.GITHUB_TOKEN` is configured, also queries GitHub GraphQL
- *    for exact counts (`acceptedAnswers`, `sponsorships`, `mergedPullRequests`).
+ *    (`acceptedAnswers`, `sponsorships`, `mergedPullRequests`, `maxRepoStars`) and
+ *    authenticated REST Search (`coAuthoredCommits`, `yoloUnreviewedPrs`) using the
+ *    server's 5,000 req/hr quota.
  */
 
 export const BADGE_NAME_TO_ID = {
@@ -104,7 +106,8 @@ export function mapBadgeTiersToMetrics(badges = {}) {
     coAuthoredCommits: thresholdFor('pair-extraordinaire'),
     yoloUnreviewedPrs: thresholdFor('yolo'),
     quickdrawUnlocked: Boolean(badges?.quickdraw),
-    mergedPullRequestsFloor: thresholdFor('pull-shark')
+    mergedPullRequestsFloor: thresholdFor('pull-shark'),
+    maxRepoStarsFloor: thresholdFor('starstruck')
   };
 }
 
@@ -120,9 +123,13 @@ export async function queryGraphqlWithServerToken(login, token, fetchImpl = glob
   const query = `query($login: String!) {
     user(login: $login) {
       login
+      name
       repositoryDiscussionComments(onlyAnswers: true) { totalCount }
       sponsoring { totalCount }
       pullRequests(states: MERGED) { totalCount }
+      repositories(ownerAffiliations: OWNER, isFork: false, first: 1, orderBy: {field: STARGAZERS, direction: DESC}) {
+        nodes { stargazerCount }
+      }
     }
   }`;
 
@@ -142,17 +149,58 @@ export async function queryGraphqlWithServerToken(login, token, fetchImpl = glob
   const user = payload?.data?.user;
   if (!user) return null;
 
+  const topRepoStars = Number(user.repositories?.nodes?.[0]?.stargazerCount ?? 0);
+
   return {
     login: user.login,
+    name: user.name || user.login,
     acceptedAnswers: Number(user.repositoryDiscussionComments?.totalCount ?? 0),
     sponsorships: Number(user.sponsoring?.totalCount ?? 0),
-    mergedPullRequests: Number(user.pullRequests?.totalCount ?? 0)
+    mergedPullRequests: Number(user.pullRequests?.totalCount ?? 0),
+    maxRepoStars: topRepoStars
+  };
+}
+
+/**
+ * Queries authenticated REST Search for co-authored commits and unreviewed merged PRs
+ * using the server's GITHUB_TOKEN so visitors never hit the 10 req/min browser limit.
+ * @param {string} login
+ * @param {string} token
+ * @param {typeof fetch} [fetchImpl]
+ */
+export async function queryServerSearchMetrics(login, token, fetchImpl = globalThis.fetch) {
+  if (!token || typeof fetchImpl !== 'function') return null;
+
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'github-achievements-tracker'
+  };
+
+  const coAuthorQuery = encodeURIComponent(`author:${login} Co-authored-by`);
+  const yoloQuery = encodeURIComponent(`author:${login} type:pr is:merged review:none`);
+
+  const [coAuthorRes, yoloRes] = await Promise.all([
+    fetchImpl(`https://api.github.com/search/commits?q=${coAuthorQuery}&per_page=1`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
+    fetchImpl(`https://api.github.com/search/issues?q=${yoloQuery}&per_page=1`, { headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+  ]);
+
+  if (!coAuthorRes && !yoloRes) return null;
+
+  return {
+    coAuthoredCommits: Number(coAuthorRes?.total_count ?? 0),
+    yoloUnreviewedPrs: Number(yoloRes?.total_count ?? 0)
   };
 }
 
 /**
  * Fetches live achievements for any GitHub username combining the public
- * `?tab=achievements` page and (when available) server-side GraphQL metrics.
+ * `?tab=achievements` page, GraphQL metrics, and server-side REST Search.
  * @param {string} username
  * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
  */
@@ -163,14 +211,15 @@ export async function resolveLiveUserAchievements(username, options = {}) {
     throw new Error('Invalid GitHub username.');
   }
 
-  const [htmlRes, graphqlData] = await Promise.all([
+  const [htmlRes, graphqlData, searchData] = await Promise.all([
     fetchImpl(`https://github.com/${encodeURIComponent(cleanUser)}?tab=achievements`, {
       headers: {
         Accept: 'text/html,application/xhtml+xml',
         'User-Agent': 'github-achievements-tracker'
       }
     }).catch(() => null),
-    queryGraphqlWithServerToken(cleanUser, token, fetchImpl).catch(() => null)
+    queryGraphqlWithServerToken(cleanUser, token, fetchImpl).catch(() => null),
+    queryServerSearchMetrics(cleanUser, token, fetchImpl).catch(() => null)
   ]);
 
   let badges = {};
@@ -187,14 +236,16 @@ export async function resolveLiveUserAchievements(username, options = {}) {
 
   return {
     login: graphqlData?.login || cleanUser,
+    name: graphqlData?.name || cleanUser,
     acceptedAnswers: Math.max(graphqlData?.acceptedAnswers ?? 0, badgeMetrics.acceptedAnswers),
     sponsorships: Math.max(graphqlData?.sponsorships ?? 0, badgeMetrics.sponsorships),
     mergedPullRequests: Math.max(
       graphqlData?.mergedPullRequests ?? 0,
       badgeMetrics.mergedPullRequestsFloor
     ),
-    yoloUnreviewedPrs: badgeMetrics.yoloUnreviewedPrs,
-    coAuthoredCommits: badgeMetrics.coAuthoredCommits,
+    maxRepoStars: Math.max(graphqlData?.maxRepoStars ?? 0, badgeMetrics.maxRepoStarsFloor),
+    yoloUnreviewedPrs: Math.max(searchData?.yoloUnreviewedPrs ?? 0, badgeMetrics.yoloUnreviewedPrs),
+    coAuthoredCommits: Math.max(searchData?.coAuthoredCommits ?? 0, badgeMetrics.coAuthoredCommits),
     quickdrawUnlocked: badgeMetrics.quickdrawUnlocked,
     badges,
     source: graphqlData ? 'graphql+badges' : 'badges',

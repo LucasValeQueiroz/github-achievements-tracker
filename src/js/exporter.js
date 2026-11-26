@@ -2,6 +2,8 @@
  * Markdown badge & progress table exporter and JSON report serializer.
  */
 
+export const LIVE_TRACKER_URL = 'https://github-achievement-tracker.vercel.app';
+
 const TIER_COLORS = {
   locked: '6e7681',
   default: '2f81f7',
@@ -37,6 +39,20 @@ export function buildAchievementShield(achievement) {
 }
 
 /**
+ * Builds a ready-to-paste dynamic live SVG card snippet for a GitHub Profile README.
+ * @param {string} login
+ * @param {{ theme?: 'dark'|'light', lang?: 'pt'|'en' }} [options]
+ */
+export function buildLiveReadmeCardMarkdown(login, options = {}) {
+  const cleanUser = encodeURIComponent(String(login || 'user').trim());
+  const theme = options.theme === 'light' ? 'light' : 'dark';
+  const lang = options.lang === 'pt' ? 'pt' : 'en';
+  const imgUrl = `${LIVE_TRACKER_URL}/api/badge?user=${cleanUser}&theme=${theme}&lang=${lang}`;
+  const linkUrl = `${LIVE_TRACKER_URL}/?user=${cleanUser}`;
+  return `[![GitHub Achievements — @${login || 'user'}](${imgUrl})](${linkUrl})`;
+}
+
+/**
  * Builds a Markdown snippet ready to paste into a GitHub Profile README.
  * @param {object} analysis
  * @param {'pt'|'en'} [lang='en']
@@ -49,6 +65,8 @@ export function buildMarkdownReport(analysis, lang = 'en') {
   const title = isPt
     ? `## 🏆 Progresso de GitHub Achievements — @${login}`
     : `## 🏆 GitHub Achievements Progress — @${login}`;
+
+  const liveCard = buildLiveReadmeCardMarkdown(login, { theme: 'dark', lang });
 
   const badgesLine = achievements
     .filter((a) => a.progress.unlocked)
@@ -73,10 +91,10 @@ export function buildMarkdownReport(analysis, lang = 'en') {
   });
 
   const footer = isPt
-    ? `_Gerado com [GitHub Achievements Tracker](https://lucasvalequeiroz.github.io/github-achievements-tracker/?user=${encodeURIComponent(login)})_`
-    : `_Generated with [GitHub Achievements Tracker](https://lucasvalequeiroz.github.io/github-achievements-tracker/?user=${encodeURIComponent(login)})_`;
+    ? `_Gerado com [GitHub Achievements Tracker](${LIVE_TRACKER_URL}/?user=${encodeURIComponent(login)})_`
+    : `_Generated with [GitHub Achievements Tracker](${LIVE_TRACKER_URL}/?user=${encodeURIComponent(login)})_`;
 
-  const sections = [title];
+  const sections = [title, '', liveCard];
   if (badgesLine) {
     sections.push('', badgesLine);
   }
