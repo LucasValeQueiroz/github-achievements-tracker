@@ -1,4 +1,4 @@
 {
-  "apiProxyUrl": "",
+  "apiProxyUrl": "https://github-achievement-tracker.vercel.app/api/achievements",
   "autoRefreshMs": 300000
 }

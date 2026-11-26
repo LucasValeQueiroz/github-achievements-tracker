@@ -11,6 +11,12 @@ import {
 import { analyzeDashboardData } from './analyzer.js';
 import { renderToolkit } from './toolkit-ui.js';
 import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
+import {
+  buildRegisterIssueUrl,
+  fetchCommunityProfiles,
+  isProfileRegistered,
+  filterAndSortCommunity
+} from './community.js';
 import { t } from './i18n.js';
 
 const VISIBILITY_STALE_MS = 2 * 60 * 1000;
@@ -26,7 +32,10 @@ const state = {
   currentLogin: '',
   rawData: null,
   analysis: null,
-  manualOverrides: {}
+  manualOverrides: {},
+  communityProfiles: [],
+  communityQuery: '',
+  communitySortBy: 'mergedPullRequests'
 };
 
 const els = {
@@ -45,6 +54,10 @@ const els = {
   recommendationsList: document.getElementById('recommendations-list'),
   topReposList: document.getElementById('top-repos-list'),
   toolkitMount: document.getElementById('toolkit-mount'),
+  communityList: document.getElementById('community-list'),
+  communitySearch: document.getElementById('community-search'),
+  communitySort: document.getElementById('community-sort'),
+  communityRegisterCta: document.getElementById('community-register-cta'),
   highlightsMount: document.getElementById('highlights-mount'),
   langToggle: document.getElementById('lang-toggle'),
   themeToggle: document.getElementById('theme-toggle')
@@ -153,6 +166,9 @@ function scheduleAutoRefresh() {
 
 function renderProfile(analysis) {
   const { profile } = analysis;
+  const alreadyRegistered = isProfileRegistered(state.communityProfiles, profile.login);
+  const registerUrl = buildRegisterIssueUrl(profile.login);
+
   els.profileSection.innerHTML = `
     <div class="profile-identity">
       <img class="avatar" src="${escapeHtml(profile.avatarUrl)}" alt="${escapeHtml(profile.login)}" />
@@ -169,8 +185,17 @@ function renderProfile(analysis) {
     <div class="btn-row" style="margin-top:0">
       <button id="download-profile-png-btn" class="btn btn-primary" type="button">🖼️ ${escapeHtml(t(state.lang, 'downloadCardPng'))}</button>
       <button id="share-profile-btn" class="btn" type="button">${escapeHtml(t(state.lang, 'shareUrl'))}</button>
+      ${
+        alreadyRegistered
+          ? `<span class="pill" style="color: var(--success)">✅ ${escapeHtml(t(state.lang, 'communityRegisteredBadge'))}</span>`
+          : `<a class="btn" href="${escapeHtml(registerUrl)}" target="_blank" rel="noopener noreferrer">➕ ${escapeHtml(t(state.lang, 'communityRegisterThis'))}</a>`
+      }
     </div>
   `;
+
+  if (els.communityRegisterCta) {
+    els.communityRegisterCta.href = registerUrl;
+  }
 
   const downloadPngBtn = document.getElementById('download-profile-png-btn');
   downloadPngBtn?.addEventListener('click', async () => {
@@ -211,6 +236,47 @@ function renderProfile(analysis) {
     } catch {
       window.prompt('URL:', shareUrl);
     }
+  });
+}
+
+function renderCommunityDirectory() {
+  if (!els.communityList) return;
+  const items = filterAndSortCommunity(state.communityProfiles, {
+    query: state.communityQuery,
+    sortBy: state.communitySortBy
+  });
+
+  if (items.length === 0) {
+    els.communityList.innerHTML = `<p class="muted small">${escapeHtml(t(state.lang, 'communityEmpty'))}</p>`;
+    return;
+  }
+
+  els.communityList.innerHTML = items
+    .map((item) => {
+      const isActive = item.login.toLowerCase() === state.currentLogin.toLowerCase();
+      return `
+        <button type="button" class="community-card ${isActive ? 'active' : ''}" data-community-user="${escapeHtml(item.login)}">
+          <div class="community-card-head">
+            <img class="community-avatar" src="https://github.com/${encodeURIComponent(item.login)}.png?size=64" alt="${escapeHtml(item.login)}" loading="lazy" />
+            <strong>@${escapeHtml(item.login)}</strong>
+          </div>
+          <div class="community-card-stats small muted">
+            <span>🦈 ${Number(item.mergedPullRequests || 0)} PRs</span>
+            <span>🧠 ${Number(item.acceptedAnswers || 0)}</span>
+            <span>🤝 ${Number(item.coAuthoredCommits || 0)}</span>
+          </div>
+        </button>
+      `;
+    })
+    .join('');
+
+  els.communityList.querySelectorAll('[data-community-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.communityUser;
+      els.usernameInput.value = target;
+      loadUser(target, { pushHistory: true });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   });
 }
 
@@ -405,6 +471,7 @@ function recomputeAndRender() {
     theme: state.theme,
     getToken: () => els.tokenInput.value.trim()
   });
+  renderCommunityDirectory();
   renderHighlightsAndRetired();
   els.dashboard.classList.remove('hidden');
 }
@@ -487,10 +554,14 @@ async function init() {
     }
   }
 
-  const runtimeConfig = await fetchRuntimeConfig();
+  const [runtimeConfig, communityProfiles] = await Promise.all([
+    fetchRuntimeConfig(),
+    fetchCommunityProfiles()
+  ]);
   if (runtimeConfig?.autoRefreshMs) {
     state.autoRefreshMs = runtimeConfig.autoRefreshMs;
   }
+  state.communityProfiles = communityProfiles;
 
   els.form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -500,6 +571,16 @@ async function init() {
 
   els.tokenInput?.addEventListener('change', syncRememberedToken);
   els.rememberTokenCheckbox?.addEventListener('change', syncRememberedToken);
+
+  els.communitySearch?.addEventListener('input', (event) => {
+    state.communityQuery = event.target.value;
+    renderCommunityDirectory();
+  });
+
+  els.communitySort?.addEventListener('change', (event) => {
+    state.communitySortBy = event.target.value;
+    renderCommunityDirectory();
+  });
 
   document.querySelectorAll('[data-example-user]').forEach((btn) => {
     btn.addEventListener('click', () => {
