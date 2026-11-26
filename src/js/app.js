@@ -457,9 +457,27 @@ function renderHighlightsAndRetired() {
   `;
 }
 
+function syncCommunityCardInMemory(analysis) {
+  if (!analysis?.profile?.login) return;
+  const target = analysis.profile.login.toLowerCase();
+  const idx = state.communityProfiles.findIndex(
+    (item) => String(item?.login || '').toLowerCase() === target
+  );
+  if (idx === -1) return;
+  state.communityProfiles[idx] = {
+    ...state.communityProfiles[idx],
+    login: analysis.profile.login,
+    mergedPullRequests: analysis.metrics.mergedPullRequests,
+    acceptedAnswers: analysis.metrics.acceptedAnswers,
+    coAuthoredCommits: analysis.metrics.coAuthoredPullRequests,
+    updatedAt: analysis.fetchedAt
+  };
+}
+
 function recomputeAndRender() {
   if (!state.rawData) return;
   state.analysis = analyzeDashboardData(state.rawData, state.manualOverrides);
+  syncCommunityCardInMemory(state.analysis);
   renderProfile(state.analysis);
   renderLiveSyncBar(state.analysis);
   renderKpis(state.analysis);
