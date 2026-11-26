@@ -156,11 +156,18 @@ export function analyzeDashboardData(rawData, manualOverrides = {}) {
       ? autoMetrics.yoloUnreviewedPrs > 0
       : mergedPullRequests > 0;
 
+  const quickdrawCount =
+    quickdrawEvidence.length > 0
+      ? quickdrawEvidence.length
+      : autoMetrics.quickdrawUnlocked
+        ? 1
+        : 0;
+
   const metrics = {
     mergedPullRequests,
     maxRepoStars,
     totalStars,
-    quickdrawMatches: quickdrawEvidence.length,
+    quickdrawMatches: quickdrawCount,
     coAuthoredPullRequests: Number(
       hasManual('coAuthoredPullRequests')
         ? manualOverrides.coAuthoredPullRequests
@@ -236,6 +243,7 @@ export function analyzeDashboardData(rawData, manualOverrides = {}) {
     galaxyBrainLinks,
     recommendations,
     rateLimit: rawData?.rateLimit || null,
+    liveSyncSource: rawData?.liveSyncSource || 'rest',
     fetchedAt: rawData?.fetchedAt || new Date().toISOString()
   };
 }

@@ -1,9 +1,13 @@
 /**
- * GitHub REST API v3 client for browser & Node environments.
+ * GitHub REST API v3, GraphQL & live proxy client for browser & Node environments.
  * Zero external dependencies — supports injectable fetch for deterministic tests.
  */
 
 export const GITHUB_API_BASE = 'https://api.github.com';
+export const DEFAULT_CACHE_TTL_MS = 3 * 60 * 1000;
+const CACHE_KEY_PREFIX = 'gat_dashboard_cache_v2:';
+
+let cachedRuntimeConfig = null;
 
 export class GitHubApiError extends Error {
   /**
@@ -57,6 +61,60 @@ export function extractRateLimit(headers) {
     remaining,
     resetAt: Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : null
   };
+}
+
+/**
+ * Reads a cached dashboard payload from sessionStorage if still fresh.
+ * @param {string} username
+ * @param {number} [ttlMs]
+ * @param {Storage} [storage]
+ */
+export function readDashboardCache(
+  username,
+  ttlMs = DEFAULT_CACHE_TTL_MS,
+  storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null
+) {
+  if (!storage) return null;
+  const key = `${CACHE_KEY_PREFIX}${String(username || '').trim().toLowerCase()}`;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.fetchedAt || !parsed?.data) return null;
+    const ageMs = Date.now() - Date.parse(parsed.fetchedAt);
+    if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > ttlMs) {
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a dashboard payload into sessionStorage.
+ * @param {string} username
+ * @param {object} data
+ * @param {Storage} [storage]
+ */
+export function writeDashboardCache(
+  username,
+  data,
+  storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null
+) {
+  if (!storage || !data) return;
+  const key = `${CACHE_KEY_PREFIX}${String(username || '').trim().toLowerCase()}`;
+  try {
+    storage.setItem(
+      key,
+      JSON.stringify({
+        fetchedAt: data.fetchedAt || new Date().toISOString(),
+        data
+      })
+    );
+  } catch {
+    // Ignore storage quota / private-mode errors
+  }
 }
 
 /**
@@ -273,22 +331,113 @@ export async function fetchGraphqlAchievementMetrics(username, options = {}) {
 }
 
 /**
- * Loads the GitHub-Actions-synced static snapshot (`data/profile-snapshot.json`) when running
- * without a personal token in the browser, so the default hosted profile displays live
- * Galaxy Brain & Sponsor counts automatically without manual inputs.
- * @param {string} username
- * @param {{ fetchImpl?: typeof fetch }} [options]
+ * Loads optional runtime configuration from `data/config.json`.
+ * @param {{ fetchImpl?: typeof fetch, force?: boolean }} [options]
  */
-export async function fetchLocalProfileSnapshot(username, options = {}) {
-  const { fetchImpl = globalThis.fetch } = options;
+export async function fetchRuntimeConfig(options = {}) {
+  const { fetchImpl = globalThis.fetch, force = false } = options;
+  if (cachedRuntimeConfig && !force) return cachedRuntimeConfig;
   if (typeof fetchImpl !== 'function' || typeof window === 'undefined') {
+    return { apiProxyUrl: '', autoRefreshMs: 300000 };
+  }
+  try {
+    const res = await fetchImpl('./data/config.json', { cache: 'no-cache' });
+    if (!res.ok) {
+      cachedRuntimeConfig = { apiProxyUrl: '', autoRefreshMs: 300000 };
+      return cachedRuntimeConfig;
+    }
+    const parsed = await res.json();
+    cachedRuntimeConfig = {
+      apiProxyUrl: String(parsed?.apiProxyUrl || '').trim(),
+      autoRefreshMs: Number(parsed?.autoRefreshMs) > 0 ? Number(parsed.autoRefreshMs) : 300000
+    };
+    return cachedRuntimeConfig;
+  } catch {
+    cachedRuntimeConfig = { apiProxyUrl: '', autoRefreshMs: 300000 };
+    return cachedRuntimeConfig;
+  }
+}
+
+/**
+ * Resolves the live achievements proxy URL if configured or hosted on a dynamic origin (e.g. Vercel).
+ * @param {{ apiProxyUrl?: string }} [runtimeConfig]
+ */
+export function resolveAchievementsProxyUrl(runtimeConfig = {}) {
+  const explicit = String(runtimeConfig?.apiProxyUrl || '').trim();
+  if (explicit) return explicit.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined' && window.location) {
+    const host = String(window.location.hostname || '').toLowerCase();
+    const protocol = String(window.location.protocol || '');
+    if (protocol.startsWith('http') && !host.endsWith('.github.io')) {
+      return '/api/achievements';
+    }
+  }
+  return '';
+}
+
+/**
+ * Calls the live `/api/achievements?user=<login>` proxy when available so EVERY visitor
+ * gets automatic Galaxy Brain, Public Sponsor, and official badge tier detection without a token.
+ * @param {string} username
+ * @param {{ fetchImpl?: typeof fetch, proxyUrl?: string }} [options]
+ */
+export async function fetchLiveAchievementsProxy(username, options = {}) {
+  const { fetchImpl = globalThis.fetch, proxyUrl: explicitProxyUrl } = options;
+  if (typeof fetchImpl !== 'function') return null;
+
+  let proxyUrl = explicitProxyUrl;
+  if (proxyUrl === undefined) {
+    const config = await fetchRuntimeConfig({ fetchImpl });
+    proxyUrl = resolveAchievementsProxyUrl(config);
+  }
+  if (!proxyUrl) return null;
+
+  const separator = proxyUrl.includes('?') ? '&' : '?';
+  const url = `${proxyUrl}${separator}user=${encodeURIComponent(String(username || '').trim())}`;
+  try {
+    const res = await fetchImpl(url, { cache: 'no-cache' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || typeof data !== 'object' || data.error) return null;
+    return data;
+  } catch {
     return null;
   }
+}
+
+/**
+ * Loads the GitHub-Actions-synced multi-user snapshot (`data/profiles-snapshot.json`)
+ * and falls back to the legacy single-user snapshot (`data/profile-snapshot.json`).
+ * @param {string} username
+ * @param {{ fetchImpl?: typeof fetch, forceBrowserCheck?: boolean }} [options]
+ */
+export async function fetchLocalProfileSnapshot(username, options = {}) {
+  const { fetchImpl = globalThis.fetch, forceBrowserCheck = true } = options;
+  if (typeof fetchImpl !== 'function') return null;
+  if (forceBrowserCheck && typeof window === 'undefined') return null;
+
+  const targetKey = String(username || '').trim().toLowerCase();
+  if (!targetKey) return null;
+
+  try {
+    const multiRes = await fetchImpl('./data/profiles-snapshot.json', { cache: 'no-cache' });
+    if (multiRes.ok) {
+      const multi = await multiRes.json();
+      const hit = multi?.profiles?.[targetKey];
+      if (hit && typeof hit === 'object') {
+        return hit;
+      }
+    }
+  } catch {
+    // Fall through to legacy snapshot
+  }
+
   try {
     const res = await fetchImpl('./data/profile-snapshot.json', { cache: 'no-cache' });
     if (!res.ok) return null;
     const snap = await res.json();
-    if (String(snap?.login || '').toLowerCase() !== String(username || '').trim().toLowerCase()) {
+    if (String(snap?.login || '').toLowerCase() !== targetKey) {
       return null;
     }
     return snap;
@@ -299,23 +448,47 @@ export async function fetchLocalProfileSnapshot(username, options = {}) {
 
 /**
  * Fetches all data required to render the GitHub Achievements dashboard.
+ * Uses short-lived sessionStorage caching unless `forceRefresh: true` is passed.
  * @param {string} username
- * @param {{ token?: string, fetchImpl?: typeof fetch }} [options]
+ * @param {{ token?: string, fetchImpl?: typeof fetch, forceRefresh?: boolean, proxyUrl?: string, cacheTtlMs?: number, storage?: Storage }} [options]
  */
 export async function fetchUserDashboardData(username, options = {}) {
-  const profileRes = await fetchUserProfile(username, options);
+  const {
+    forceRefresh = false,
+    cacheTtlMs = DEFAULT_CACHE_TTL_MS,
+    storage = typeof sessionStorage !== 'undefined' ? sessionStorage : null
+  } = options;
+
+  const cleanInput = String(username || '').trim();
+  if (!forceRefresh && !options.token) {
+    const cached = readDashboardCache(cleanInput, cacheTtlMs, storage);
+    if (cached) {
+      return { ...cached, fromCache: true };
+    }
+  }
+
+  const profileRes = await fetchUserProfile(cleanInput, options);
   const login = profileRes.data.login;
 
-  const [reposRes, mergedPrsRes, closedItemsRes, yoloRes, coAuthorRes, graphqlMetrics, snapshot] =
-    await Promise.all([
-      fetchUserRepositories(login, options),
-      fetchMergedPullRequestsCount(login, options),
-      fetchRecentClosedItems(login, options),
-      fetchYoloMergedPrsCount(login, options).catch(() => null),
-      fetchCoAuthoredCommitsCount(login, options).catch(() => null),
-      fetchGraphqlAchievementMetrics(login, options).catch(() => null),
-      fetchLocalProfileSnapshot(login, options).catch(() => null)
-    ]);
+  const [
+    reposRes,
+    mergedPrsRes,
+    closedItemsRes,
+    yoloRes,
+    coAuthorRes,
+    graphqlMetrics,
+    liveProxy,
+    snapshot
+  ] = await Promise.all([
+    fetchUserRepositories(login, options),
+    fetchMergedPullRequestsCount(login, options).catch(() => null),
+    fetchRecentClosedItems(login, options).catch(() => null),
+    fetchYoloMergedPrsCount(login, options).catch(() => null),
+    fetchCoAuthoredCommitsCount(login, options).catch(() => null),
+    fetchGraphqlAchievementMetrics(login, options).catch(() => null),
+    fetchLiveAchievementsProxy(login, options).catch(() => null),
+    fetchLocalProfileSnapshot(login, options).catch(() => null)
+  ]);
 
   const autoMetrics = {};
   const autoSources = {};
@@ -328,39 +501,82 @@ export async function fetchUserDashboardData(username, options = {}) {
     autoMetrics.coAuthoredPullRequests = coAuthorRes.data;
     autoSources.coAuthoredPullRequests = 'api';
   }
+
+  // Priority order for GraphQL / badge-only metrics:
+  // 1. Authenticated GraphQL API (user token)
+  // 2. Live Serverless Proxy (/api/achievements) — works automatically for EVERY visitor
+  // 3. GitHub-Actions-synced multi-user snapshot (data/profiles-snapshot.json)
+  const fallbackSource = liveProxy || snapshot;
+
   if (graphqlMetrics) {
     autoMetrics.acceptedAnswers = graphqlMetrics.acceptedAnswers;
     autoMetrics.sponsorships = graphqlMetrics.sponsorships;
     autoSources.acceptedAnswers = 'api';
     autoSources.sponsorships = 'api';
-  } else if (snapshot) {
-    if (typeof snapshot.acceptedAnswers === 'number') {
-      autoMetrics.acceptedAnswers = snapshot.acceptedAnswers;
+  } else if (fallbackSource) {
+    if (typeof fallbackSource.acceptedAnswers === 'number') {
+      autoMetrics.acceptedAnswers = fallbackSource.acceptedAnswers;
       autoSources.acceptedAnswers = 'api';
     }
-    if (typeof snapshot.sponsorships === 'number') {
-      autoMetrics.sponsorships = snapshot.sponsorships;
+    if (typeof fallbackSource.sponsorships === 'number') {
+      autoMetrics.sponsorships = fallbackSource.sponsorships;
       autoSources.sponsorships = 'api';
     }
-    if (autoMetrics.coAuthoredPullRequests === undefined && typeof snapshot.coAuthoredCommits === 'number') {
-      autoMetrics.coAuthoredPullRequests = snapshot.coAuthoredCommits;
+    if (
+      autoMetrics.coAuthoredPullRequests === undefined &&
+      typeof fallbackSource.coAuthoredCommits === 'number'
+    ) {
+      autoMetrics.coAuthoredPullRequests = fallbackSource.coAuthoredCommits;
       autoSources.coAuthoredPullRequests = 'api';
     }
-    if (autoMetrics.yoloUnreviewedPrs === undefined && typeof snapshot.yoloUnreviewedPrs === 'number') {
-      autoMetrics.yoloUnreviewedPrs = snapshot.yoloUnreviewedPrs;
+    if (
+      autoMetrics.yoloUnreviewedPrs === undefined &&
+      typeof fallbackSource.yoloUnreviewedPrs === 'number'
+    ) {
+      autoMetrics.yoloUnreviewedPrs = fallbackSource.yoloUnreviewedPrs;
       autoSources.yolo = 'api';
     }
   }
 
-  return {
+  if (liveProxy?.quickdrawUnlocked || snapshot?.quickdrawUnlocked) {
+    autoMetrics.quickdrawUnlocked = true;
+    autoSources.quickdraw = 'api';
+  }
+
+  const mergedPullRequests = Math.max(
+    Number(graphqlMetrics?.mergedPullRequests ?? 0),
+    Number(mergedPrsRes?.data?.totalCount ?? 0),
+    Number(liveProxy?.mergedPullRequests ?? 0),
+    Number(snapshot?.mergedPullRequests ?? 0)
+  );
+
+  const payload = {
     profile: profileRes.data,
     repositories: reposRes.data,
-    mergedPullRequests: graphqlMetrics?.mergedPullRequests ?? mergedPrsRes.data.totalCount,
-    sampleMergedPrs: mergedPrsRes.data.sampleItems,
-    recentClosedItems: closedItemsRes.data,
+    mergedPullRequests,
+    sampleMergedPrs: mergedPrsRes?.data?.sampleItems || [],
+    recentClosedItems: closedItemsRes?.data || [],
     autoMetrics,
     autoSources,
-    rateLimit: closedItemsRes.rateLimit || mergedPrsRes.rateLimit || reposRes.rateLimit || profileRes.rateLimit,
-    fetchedAt: new Date().toISOString()
+    liveSyncSource: graphqlMetrics
+      ? 'graphql'
+      : liveProxy
+        ? 'live-proxy'
+        : snapshot
+          ? 'snapshot'
+          : 'rest',
+    rateLimit:
+      closedItemsRes?.rateLimit ||
+      mergedPrsRes?.rateLimit ||
+      reposRes.rateLimit ||
+      profileRes.rateLimit,
+    fetchedAt: new Date().toISOString(),
+    fromCache: false
   };
+
+  if (!options.token) {
+    writeDashboardCache(login, payload, storage);
+  }
+
+  return payload;
 }

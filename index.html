@@ -83,6 +83,10 @@
               data-i18n-placeholder="tokenPlaceholder"
               aria-label="Optional GitHub Personal Access Token"
             />
+            <label class="remember-token-row small muted">
+              <input id="remember-token" type="checkbox" />
+              <span data-i18n="rememberToken">Lembrar token apenas neste navegador</span>
+            </label>
             <p class="muted small" data-i18n="tokenHint">
               Opcional: a API pública permite 60 req/h por IP; com token pessoal sobe para 5.000 req/h. Nunca enviado a terceiros.
             </p>
@@ -95,6 +99,7 @@
 
     <div id="dashboard" class="dashboard hidden">
       <section id="profile-section" class="profile-card"></section>
+      <div id="live-sync-bar" class="live-sync-bar" aria-live="polite"></div>
 
       <section id="kpi-grid" class="kpi-grid" aria-label="Key metrics"></section>
 
