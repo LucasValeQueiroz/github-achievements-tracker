@@ -133,6 +133,31 @@
       </section>
 
       <section class="section">
+        <div class="panel">
+          <div class="section-header">
+            <div>
+              <h2 data-i18n="communityTitle">Base da Comunidade Open Source</h2>
+              <p class="muted small" data-i18n="communityDesc">
+                Perfis cadastrados na base pública e atualizados automaticamente via GitHub Actions + API ao vivo.
+              </p>
+            </div>
+            <a id="community-register-cta" class="btn btn-primary" href="https://github.com/LucasValeQueiroz/github-achievements-tracker/issues/new" target="_blank" rel="noopener noreferrer" data-i18n="communityRegisterBtn">
+              ➕ Cadastrar meu perfil
+            </a>
+          </div>
+          <div class="community-controls">
+            <input id="community-search" type="search" class="input" data-i18n-placeholder="communitySearchPlaceholder" placeholder="Filtrar perfis cadastrados (@username)..." aria-label="Filter registered profiles" />
+            <select id="community-sort" class="input community-select" aria-label="Sort community profiles">
+              <option value="mergedPullRequests" data-i18n="communitySortPrs">Ordenar por PRs Mergeados</option>
+              <option value="acceptedAnswers" data-i18n="communitySortGalaxy">Ordenar por Galaxy Brain</option>
+              <option value="coAuthoredCommits" data-i18n="communitySortPair">Ordenar por Pair Extraordinaire</option>
+            </select>
+          </div>
+          <div id="community-list" class="community-grid"></div>
+        </div>
+      </section>
+
+      <section class="section">
         <h2 data-i18n="sectionHighlights">Profile Highlights &amp; Aposentados</h2>
         <div id="highlights-mount" class="two-col-grid"></div>
       </section>
