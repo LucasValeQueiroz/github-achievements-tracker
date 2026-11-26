@@ -1,0 +1,20 @@
+{
+  "updatedAt": "2026-11-26T17:35:00Z",
+  "profiles": {
+    "lucasvalequeiroz": {
+      "login": "LucasValeQueiroz",
+      "acceptedAnswers": 4,
+      "sponsorships": 0,
+      "mergedPullRequests": 106,
+      "yoloUnreviewedPrs": 104,
+      "coAuthoredCommits": 96,
+      "quickdrawUnlocked": true,
+      "badges": {
+        "pull-shark": "bronze",
+        "quickdraw": "default",
+        "yolo": "default"
+      },
+      "updatedAt": "2026-11-26T17:35:00Z"
+    }
+  }
+}

@@ -3,15 +3,27 @@
  */
 
 import { PROFILE_HIGHLIGHTS, RETIRED_ACHIEVEMENTS } from './achievements.js';
-import { fetchUserDashboardData, GitHubApiError } from './github-api.js';
+import {
+  fetchUserDashboardData,
+  fetchRuntimeConfig,
+  GitHubApiError
+} from './github-api.js';
 import { analyzeDashboardData } from './analyzer.js';
 import { renderToolkit } from './toolkit-ui.js';
 import { buildProfileCardSvg, fetchAvatarAsDataUrl, renderSvgToPngBlob } from './card-generator.js';
 import { t } from './i18n.js';
 
+const VISIBILITY_STALE_MS = 2 * 60 * 1000;
+const DEFAULT_AUTO_REFRESH_MS = 5 * 60 * 1000;
+
 const state = {
   lang: localStorage.getItem('gat_lang') || 'pt',
   theme: localStorage.getItem('gat_theme') || 'dark',
+  autoRefreshEnabled: localStorage.getItem('gat_auto_refresh') !== 'off',
+  autoRefreshMs: DEFAULT_AUTO_REFRESH_MS,
+  autoRefreshTimer: null,
+  isFetching: false,
+  currentLogin: '',
   rawData: null,
   analysis: null,
   manualOverrides: {}
@@ -22,11 +34,13 @@ const els = {
   form: document.getElementById('search-form'),
   usernameInput: document.getElementById('username-input'),
   tokenInput: document.getElementById('token-input'),
+  rememberTokenCheckbox: document.getElementById('remember-token'),
   statusBanner: document.getElementById('status-banner'),
   dashboard: document.getElementById('dashboard'),
   profileSection: document.getElementById('profile-section'),
   kpiGrid: document.getElementById('kpi-grid'),
   rateLimitPill: document.getElementById('rate-limit-pill'),
+  liveSyncBar: document.getElementById('live-sync-bar'),
   achievementsGrid: document.getElementById('achievements-grid'),
   recommendationsList: document.getElementById('recommendations-list'),
   topReposList: document.getElementById('top-repos-list'),
@@ -47,6 +61,18 @@ export function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function formatSyncTime(isoString) {
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString(state.lang === 'pt' ? 'pt-BR' : 'en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return '';
+  }
 }
 
 function applyStaticTranslations() {
@@ -75,6 +101,54 @@ function setStatus(message, isError = false) {
   els.statusBanner.textContent = message;
   els.statusBanner.classList.remove('hidden');
   els.statusBanner.classList.toggle('error', isError);
+}
+
+function renderLiveSyncBar(analysis) {
+  if (!els.liveSyncBar || !analysis) return;
+  const timeStr = formatSyncTime(analysis.fetchedAt);
+  const autoLabel = state.autoRefreshEnabled
+    ? t(state.lang, 'autoRefreshOn')
+    : t(state.lang, 'autoRefreshOff');
+
+  els.liveSyncBar.innerHTML = `
+    <span class="pill live-pill">
+      <span class="live-dot ${state.autoRefreshEnabled ? 'active' : ''}" aria-hidden="true"></span>
+      ${escapeHtml(t(state.lang, 'lastUpdated', { time: timeStr }))}
+    </span>
+    <button id="refresh-now-btn" class="icon-btn" type="button" ${state.isFetching ? 'disabled' : ''}>
+      🔄 ${escapeHtml(t(state.lang, 'refreshNow'))}
+    </button>
+    <button id="auto-refresh-toggle" class="icon-btn" type="button" aria-pressed="${state.autoRefreshEnabled}">
+      ⚡ ${escapeHtml(autoLabel)}
+    </button>
+  `;
+
+  document.getElementById('refresh-now-btn')?.addEventListener('click', () => {
+    if (state.currentLogin) {
+      loadUser(state.currentLogin, { forceRefresh: true });
+    }
+  });
+
+  document.getElementById('auto-refresh-toggle')?.addEventListener('click', () => {
+    state.autoRefreshEnabled = !state.autoRefreshEnabled;
+    localStorage.setItem('gat_auto_refresh', state.autoRefreshEnabled ? 'on' : 'off');
+    scheduleAutoRefresh();
+    renderLiveSyncBar(state.analysis);
+  });
+}
+
+function scheduleAutoRefresh() {
+  if (state.autoRefreshTimer) {
+    clearInterval(state.autoRefreshTimer);
+    state.autoRefreshTimer = null;
+  }
+  if (!state.autoRefreshEnabled) return;
+
+  state.autoRefreshTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && state.currentLogin && !state.isFetching) {
+      loadUser(state.currentLogin, { forceRefresh: true, silent: true });
+    }
+  }, state.autoRefreshMs);
 }
 
 function renderProfile(analysis) {
@@ -321,6 +395,7 @@ function recomputeAndRender() {
   if (!state.rawData) return;
   state.analysis = analyzeDashboardData(state.rawData, state.manualOverrides);
   renderProfile(state.analysis);
+  renderLiveSyncBar(state.analysis);
   renderKpis(state.analysis);
   renderAchievements(state.analysis);
   renderRecommendations(state.analysis);
@@ -334,52 +409,103 @@ function recomputeAndRender() {
   els.dashboard.classList.remove('hidden');
 }
 
-async function loadUser(username) {
-  const trimmed = String(username || '').trim();
-  if (!trimmed) return;
-
-  setStatus(t(state.lang, 'loading'));
-  try {
-    const token = els.tokenInput.value.trim();
-    const rawData = await fetchUserDashboardData(trimmed, { token });
-    state.rawData = rawData;
-    state.manualOverrides = {};
-
-    const url = new URL(window.location.href);
-    url.searchParams.set('user', rawData.profile.login);
-    window.history.replaceState({}, '', url);
-
-    setStatus('');
-    recomputeAndRender();
-  } catch (err) {
-    if (err instanceof GitHubApiError) {
-      if (err.code === 'NOT_FOUND') {
-        setStatus(t(state.lang, 'errorNotFound'), true);
-        return;
-      }
-      if (err.code === 'RATE_LIMITED') {
-        setStatus(t(state.lang, 'errorRateLimit'), true);
-        return;
-      }
-    }
-    setStatus(t(state.lang, 'errorGeneric'), true);
+function syncRememberedToken() {
+  if (!els.rememberTokenCheckbox) return;
+  const token = els.tokenInput.value.trim();
+  if (els.rememberTokenCheckbox.checked && token) {
+    localStorage.setItem('gat_token', token);
+  } else {
+    localStorage.removeItem('gat_token');
   }
 }
 
-function init() {
+async function loadUser(username, { forceRefresh = false, silent = false, pushHistory = false } = {}) {
+  const trimmed = String(username || '').trim();
+  if (!trimmed || state.isFetching) return;
+
+  state.isFetching = true;
+  if (!silent) {
+    setStatus(t(state.lang, 'loading'));
+  }
+  if (state.analysis) {
+    renderLiveSyncBar(state.analysis);
+  }
+
+  try {
+    const token = els.tokenInput.value.trim();
+    const rawData = await fetchUserDashboardData(trimmed, { token, forceRefresh });
+    state.rawData = rawData;
+    state.currentLogin = rawData.profile.login;
+    if (!silent) {
+      state.manualOverrides = {};
+    }
+
+    localStorage.setItem('gat_last_user', rawData.profile.login);
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('user', rawData.profile.login);
+    if (pushHistory) {
+      window.history.pushState({ user: rawData.profile.login }, '', url);
+    } else {
+      window.history.replaceState({ user: rawData.profile.login }, '', url);
+    }
+
+    setStatus('');
+    recomputeAndRender();
+    scheduleAutoRefresh();
+  } catch (err) {
+    if (!silent) {
+      if (err instanceof GitHubApiError) {
+        if (err.code === 'NOT_FOUND') {
+          setStatus(t(state.lang, 'errorNotFound'), true);
+          return;
+        }
+        if (err.code === 'RATE_LIMITED') {
+          setStatus(t(state.lang, 'errorRateLimit'), true);
+          return;
+        }
+      }
+      setStatus(t(state.lang, 'errorGeneric'), true);
+    }
+  } finally {
+    state.isFetching = false;
+    if (state.analysis) {
+      renderLiveSyncBar(state.analysis);
+    }
+  }
+}
+
+async function init() {
   applyTheme();
   applyStaticTranslations();
 
+  const savedToken = localStorage.getItem('gat_token') || '';
+  if (savedToken && els.tokenInput) {
+    els.tokenInput.value = savedToken;
+    if (els.rememberTokenCheckbox) {
+      els.rememberTokenCheckbox.checked = true;
+    }
+  }
+
+  const runtimeConfig = await fetchRuntimeConfig();
+  if (runtimeConfig?.autoRefreshMs) {
+    state.autoRefreshMs = runtimeConfig.autoRefreshMs;
+  }
+
   els.form.addEventListener('submit', (event) => {
     event.preventDefault();
-    loadUser(els.usernameInput.value);
+    syncRememberedToken();
+    loadUser(els.usernameInput.value, { forceRefresh: true, pushHistory: true });
   });
+
+  els.tokenInput?.addEventListener('change', syncRememberedToken);
+  els.rememberTokenCheckbox?.addEventListener('change', syncRememberedToken);
 
   document.querySelectorAll('[data-example-user]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const targetUser = btn.dataset.exampleUser;
       els.usernameInput.value = targetUser;
-      loadUser(targetUser);
+      loadUser(targetUser, { pushHistory: true });
     });
   });
 
@@ -396,10 +522,30 @@ function init() {
     applyTheme();
   });
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !state.autoRefreshEnabled || !state.currentLogin) {
+      return;
+    }
+    const lastFetched = Date.parse(state.rawData?.fetchedAt || 0);
+    if (!Number.isFinite(lastFetched) || Date.now() - lastFetched >= VISIBILITY_STALE_MS) {
+      loadUser(state.currentLogin, { forceRefresh: true, silent: true });
+    }
+  });
+
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const userFromUrl = params.get('user');
+    if (userFromUrl && userFromUrl.toLowerCase() !== state.currentLogin.toLowerCase()) {
+      els.usernameInput.value = userFromUrl;
+      loadUser(userFromUrl);
+    }
+  });
+
   const params = new URLSearchParams(window.location.search);
-  const initialUser = params.get('user') || 'LucasValeQueiroz';
+  const initialUser =
+    params.get('user') || localStorage.getItem('gat_last_user') || 'LucasValeQueiroz';
   els.usernameInput.value = initialUser;
-  loadUser(initialUser);
+  loadUser(initialUser, { forceRefresh: true });
 }
 
 init();

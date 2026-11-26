@@ -114,3 +114,18 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 ## 📄 License
 
 Released under the [MIT License](LICENSE).
+
+---
+
+## ⚡ Automatic Live Sync (Multi-User)
+
+This tracker updates automatically for every visitor through three coordinated layers:
+
+1. **Browser Auto-Refresh & Smart Cache (`src/js/app.js`, `src/js/github-api.js`):**
+   - Automatically refreshes the active profile every 5 minutes (toggleable via **Auto-atualizar**) and whenever you return to the tab after 2+ minutes (`visibilitychange`).
+   - Uses a 3-minute `sessionStorage` cache to protect visitors from hitting GitHub's 10 req/min unauthenticated Search API limit, while keeping a **Refresh now** button for instant live updates.
+2. **GitHub Actions Multi-User Sync (`.github/workflows/sync-profiles.yml` + `scripts/sync-profiles.mjs`):**
+   - Runs automatically every 6 hours (and on-demand via `workflow_dispatch`) using the built-in `GITHUB_TOKEN` to sync all usernames listed in `data/tracked-users.json` into `data/profiles-snapshot.json` (plus `data/profile-snapshot.json`).
+3. **1-Click Live Proxy for Any Visitor (`api/achievements.js` + `vercel.json`):**
+   - Deploying this repository on **Vercel** automatically activates `/api/achievements?user=<login>`, resolving live public badges (`Galaxy Brain`, `Public Sponsor`, `Pair Extraordinaire`, `Quickdraw`, `YOLO`, `Pull Shark`, `Starstruck`) for **any** GitHub user without requiring visitors to enter a PAT token.
+   - To use the Vercel proxy from **GitHub Pages**, set `"apiProxyUrl": "https://YOUR-VERCEL-APP.vercel.app/api/achievements"` in `data/config.json`.
